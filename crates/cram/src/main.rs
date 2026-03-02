@@ -152,12 +152,7 @@ fn list_decks() -> anyhow::Result<()> {
         return Ok(());
     }
     for deck in &decks {
-        println!(
-            "{} ({} cards, {} due)",
-            deck.name,
-            deck.cards.len(),
-            deck.due_count()
-        );
+        println!("{} ({} cards)", deck.name, deck.cards.len());
     }
     Ok(())
 }
