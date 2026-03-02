@@ -4,7 +4,7 @@ This file tracks what needs building. Claude agents work through these in order.
 Mark items ✅ when done. Add new items freely.
 
 ## Phase 1 — Core Polish (do first)
-- [ ] Stats view: show total cards, due today, retention rate, streak
+- [x] Stats view: show total cards, due today, retention rate, streak
 - [ ] Progress bar during study session (card N of M)
 - [ ] Keyboard shortcuts: Space=reveal, 1/2/3/4=rate, Esc=back
 - [ ] Dark/light theme toggle in settings
