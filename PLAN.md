@@ -22,7 +22,7 @@ Mark items ✅ when done. Add new items freely.
 - [x] Undo last rating
 
 ## Phase 3 — Typst Excellence
-- [ ] Syntax highlighting in the Typst editor (using egui's code_editor or similar)
+- [x] Syntax highlighting in the Typst editor (using egui's code_editor or similar)
 - [ ] Auto-reload preview on keystroke with 300ms debounce
 - [x] Error display when Typst fails to compile
 - [ ] Full-screen card preview mode
