@@ -26,10 +26,6 @@ preamble = "#set text(size: 14pt)"
 id = "550e8400-e29b-41d4-a716-446655440000"
 front = "What does the borrow checker enforce?"
 back = "= Rules\n- One owner\n- Borrows don't outlive owner"
-due = "2026-03-05"
-interval = 3.0
-ease = 2.5
-reps = 2
 tags = ["memory", "borrowing"]
 ```
 
@@ -40,10 +36,6 @@ tags = ["memory", "borrowing"]
 | `id` | UUID | Unique identifier (auto-generated) |
 | `front` | String | Typst markup for the question side |
 | `back` | String | Typst markup for the answer side |
-| `due` | Date | Next review date (YYYY-MM-DD) |
-| `interval` | Float | Days between reviews |
-| `ease` | Float | SM-2 ease factor (1.3 to 2.5) |
-| `reps` | Integer | Number of successful reviews |
 | `tags` | Array | Optional list of tag strings |
 
 ## Deck fields
@@ -52,7 +44,7 @@ tags = ["memory", "borrowing"]
 |-------|------|-------------|
 | `name` | String | Deck name (also used as filename) |
 | `description` | String | Optional description shown in deck list |
-| `created` | Date | Creation date |
+| `created` | Date | Creation date (YYYY-MM-DD) |
 | `preamble` | String | Typst code prepended to every card when rendering |
 
 ## Theme

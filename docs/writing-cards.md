@@ -69,4 +69,4 @@ The card editor provides Typst-aware syntax highlighting:
 
 ## Tags
 
-Each card can have tags (comma-separated) for organization. Tags are stored with the card but don't affect rendering.
+Each card can have tags (comma-separated) for organization. Tags are stored with the card but do not affect rendering.
