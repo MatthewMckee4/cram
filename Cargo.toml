@@ -28,7 +28,7 @@ serde         = { version = "1", features = ["derive"] }
 serde_json    = "1"
 tempfile      = "3"
 thiserror     = "2"
-toml          = "0.8"
+toml          = "1.0"
 tracing       = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 typst         = "0.14"
