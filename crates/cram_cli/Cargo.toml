@@ -6,4 +6,5 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-clap.workspace = true
+clap = { workspace = true, features = ["env"] }
+cram_static.workspace = true

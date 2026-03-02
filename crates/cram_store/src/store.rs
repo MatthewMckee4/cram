@@ -19,6 +19,18 @@ impl Store {
         Ok(Self { data_dir })
     }
 
+    pub fn data_dir(&self) -> &std::path::Path {
+        &self.data_dir
+    }
+
+    /// Create a Store from the `CRAM_DECKS_DIR` env var, falling back to the default location.
+    pub fn from_env_or_default() -> Result<Self> {
+        match std::env::var(cram_static::EnvVars::DECKS_DIR) {
+            Ok(dir) if !dir.is_empty() => Self::with_dir(PathBuf::from(dir)),
+            _ => Self::new(),
+        }
+    }
+
     /// Create a Store pointing at a specific directory (useful for tests).
     pub fn with_dir(data_dir: PathBuf) -> Result<Self> {
         std::fs::create_dir_all(&data_dir)?;
@@ -76,7 +88,7 @@ impl Store {
 
 impl Default for Store {
     fn default() -> Self {
-        Self::new().expect("failed to create store")
+        Self::from_env_or_default().expect("failed to create store")
     }
 }
 
@@ -159,6 +171,12 @@ mod tests {
         store.save_deck(&Deck::new("three", "")).unwrap();
         let all = store.load_all_decks().unwrap();
         assert_eq!(all.len(), 3);
+    }
+
+    #[test]
+    fn data_dir_returns_store_path() {
+        let (store, dir) = temp_store();
+        assert_eq!(store.data_dir(), dir.path());
     }
 
     #[test]
