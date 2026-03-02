@@ -19,7 +19,7 @@ Mark items ✅ when done. Add new items freely.
 - [x] Bulk card operations (select all, delete selected)
 - [x] Deck statistics: cards by interval bucket histogram
 - [x] Study session summary screen (cards reviewed, time taken, retention %)
-- [ ] Undo last rating
+- [x] Undo last rating
 
 ## Phase 3 — Typst Excellence
 - [ ] Syntax highlighting in the Typst editor (using egui's code_editor or similar)
