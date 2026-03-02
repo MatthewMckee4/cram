@@ -18,7 +18,7 @@ cram_ui      = { path = "crates/cram_ui" }
 
 anyhow        = "1"
 chrono        = { version = "0.4", features = ["serde"] }
-criterion     = { version = "0.5", features = ["html_reports"] }
+criterion     = { version = "0.8", features = ["html_reports"] }
 dirs          = "5"
 eframe        = { version = "0.33", features = ["default"] }
 egui          = "0.33"
