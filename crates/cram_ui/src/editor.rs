@@ -5,6 +5,7 @@ use egui::{Context, Ui};
 pub struct EditorView;
 
 impl EditorView {
+    #[expect(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
         ctx: &Context,
@@ -13,6 +14,7 @@ impl EditorView {
         card_index: Option<usize>,
         store: &Store,
         texture_cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
+        selected_cards: &mut std::collections::HashSet<usize>,
     ) {
         let Some(deck) = decks.iter_mut().find(|d| d.name == deck_name) else {
             ui.label("Deck not found.");
@@ -29,6 +31,41 @@ impl EditorView {
                     }
                 });
             });
+
+            ui.horizontal(|ui| {
+                let all_selected =
+                    !deck.cards.is_empty() && selected_cards.len() == deck.cards.len();
+                if ui
+                    .button(if all_selected {
+                        "Deselect All"
+                    } else {
+                        "Select All"
+                    })
+                    .clicked()
+                {
+                    if all_selected {
+                        selected_cards.clear();
+                    } else {
+                        *selected_cards = (0..deck.cards.len()).collect();
+                    }
+                }
+                if !selected_cards.is_empty()
+                    && ui
+                        .button(format!("Delete Selected ({})", selected_cards.len()))
+                        .clicked()
+                {
+                    let mut indices: Vec<usize> = selected_cards.iter().copied().collect();
+                    indices.sort_unstable_by(|a, b| b.cmp(a));
+                    for idx in indices {
+                        if idx < deck.cards.len() {
+                            deck.cards.remove(idx);
+                        }
+                    }
+                    selected_cards.clear();
+                    let _ = store.save_deck(deck);
+                }
+            });
+
             ui.separator();
             ui.add_space(8.0);
 
@@ -48,6 +85,16 @@ impl EditorView {
                     };
 
                     ui.push_id(i, |ui| {
+                        ui.horizontal(|ui| {
+                            let mut checked = selected_cards.contains(&i);
+                            if ui.checkbox(&mut checked, "").changed() {
+                                if checked {
+                                    selected_cards.insert(i);
+                                } else {
+                                    selected_cards.remove(&i);
+                                }
+                            }
+                        });
                         egui::CollapsingHeader::new(&preview)
                             .default_open(card_index == Some(i))
                             .show(ui, |ui| {

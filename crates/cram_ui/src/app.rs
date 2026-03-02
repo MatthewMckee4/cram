@@ -42,6 +42,7 @@ pub struct CramApp {
     dark_mode: bool,
     search_query: String,
     csv_buffer: String,
+    selected_cards: std::collections::HashSet<usize>,
 }
 
 impl CramApp {
@@ -58,6 +59,7 @@ impl CramApp {
             dark_mode: true,
             search_query: String::new(),
             csv_buffer: String::new(),
+            selected_cards: std::collections::HashSet::new(),
         };
         // Seed sample deck if nothing exists
         if app.decks.is_empty() {
@@ -277,6 +279,7 @@ impl eframe::App for CramApp {
                         card_index,
                         &self.store,
                         &mut self.texture_cache,
+                        &mut self.selected_cards,
                     );
                     self.view = View::Editor {
                         deck_name,
