@@ -30,7 +30,3 @@ assert_cmd.workspace = true
 insta.workspace = true
 regex.workspace = true
 tempfile.workspace = true
-
-[[test]]
-name = "it"
-path = "tests/it/main.rs"
