@@ -29,6 +29,7 @@ pub struct CramApp {
     new_deck_name: String,
     texture_cache: std::collections::HashMap<String, egui::TextureHandle>,
     error_message: Option<String>,
+    dark_mode: bool,
 }
 
 impl CramApp {
@@ -42,6 +43,7 @@ impl CramApp {
             new_deck_name: String::new(),
             texture_cache: std::collections::HashMap::new(),
             error_message: None,
+            dark_mode: true,
         };
         // Seed sample deck if nothing exists
         if app.decks.is_empty() {
@@ -93,6 +95,17 @@ impl eframe::App for CramApp {
                 if ui.button("Stats").clicked() {
                     self.view = View::Stats;
                 }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let label = if self.dark_mode { "Light" } else { "Dark" };
+                    if ui.button(label).clicked() {
+                        self.dark_mode = !self.dark_mode;
+                        if self.dark_mode {
+                            ctx.set_visuals(egui::Visuals::dark());
+                        } else {
+                            ctx.set_visuals(egui::Visuals::light());
+                        }
+                    }
+                });
             });
         });
 
