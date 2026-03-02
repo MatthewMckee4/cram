@@ -13,6 +13,6 @@ We pledge to make participation in this project a harassment-free experience for
 
 ## Enforcement
 
-Instances of unacceptable behaviour may be reported to matthewmckee04@yahoo.co.uk.
+Instances of unacceptable behaviour may be reported to <matthewmckee04@yahoo.co.uk>.
 
 This Code of Conduct is adapted from the [Contributor Covenant](https://contributor-covenant.org/).
