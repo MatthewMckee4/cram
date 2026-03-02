@@ -39,7 +39,8 @@ impl StudyView {
         let current_idx = (*card_index).min(due_indices.len().saturating_sub(1));
         let card_pos = due_indices[current_idx];
 
-        let progress = format!("{}/{}", current_idx + 1, due_indices.len());
+        let total_due = due_indices.len();
+        let progress = format!("{}/{}", current_idx + 1, total_due);
 
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
@@ -48,6 +49,11 @@ impl StudyView {
                     ui.label(&progress);
                 });
             });
+
+            #[expect(clippy::cast_precision_loss)]
+            let fraction = (current_idx + 1) as f32 / total_due as f32;
+            ui.add(egui::ProgressBar::new(fraction).text(&progress));
+
             ui.separator();
             ui.add_space(16.0);
 
