@@ -8,7 +8,7 @@ Mark items ✅ when done. Add new items freely.
 - [x] Progress bar during study session (card N of M)
 - [x] Keyboard shortcuts: Space=reveal, 1/2/3/4=rate, Esc=back
 - [x] Dark/light theme toggle in settings
-- [ ] Search cards across all decks
+- [x] Search cards across all decks
 - [ ] Deck description field visible in deck list
 - [ ] Empty state illustration when no decks
 
