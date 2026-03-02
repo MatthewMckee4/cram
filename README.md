@@ -46,6 +46,13 @@ List all decks:
 cram list
 ```
 
+## Documentation
+
+- [Installation](docs/installation.md)
+- [Getting Started](docs/getting-started.md)
+- [Writing Cards](docs/writing-cards.md)
+- [Configuration](docs/configuration.md)
+
 ## License
 
 MIT
