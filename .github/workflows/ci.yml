@@ -10,7 +10,6 @@ on:
 permissions: {}
 
 env:
-  NEXTEST_PROFILE: ci
 
 jobs:
   determine_changes:
