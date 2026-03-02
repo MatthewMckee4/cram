@@ -51,6 +51,13 @@ impl DeckListView {
                                 ui.set_min_width(200.0);
                                 ui.vertical(|ui| {
                                     ui.heading(&deck.name);
+                                    if !deck.description.is_empty() {
+                                        ui.label(
+                                            egui::RichText::new(&deck.description)
+                                                .italics()
+                                                .color(ui.visuals().weak_text_color()),
+                                        );
+                                    }
                                     ui.label(format!("{total} cards"));
                                     if due > 0 {
                                         ui.colored_label(
