@@ -22,6 +22,7 @@ impl EditorView {
         selected_cards: &mut std::collections::HashSet<usize>,
         preview_debounce: &mut PreviewDebounce,
         fullscreen_preview: &mut Option<String>,
+        save_feedback: &mut Option<std::time::Instant>,
     ) {
         let Some(deck) = decks.iter_mut().find(|d| d.name() == deck_name) else {
             ui.label("Deck not found.");
@@ -35,6 +36,15 @@ impl EditorView {
                     if ui.add(style::accent_button("+ Add Card")).clicked() {
                         deck.cards_mut().push(Card::new("Front", "Back"));
                         let _ = multi_store.save_deck(deck, deck_source);
+                    }
+                    if let Some(saved_at) = *save_feedback {
+                        let elapsed = saved_at.elapsed();
+                        if elapsed < std::time::Duration::from_secs(2) {
+                            ui.label(egui::RichText::new("Saved!").color(style::ACCENT).strong());
+                            ctx.request_repaint_after(std::time::Duration::from_secs(2) - elapsed);
+                        } else {
+                            *save_feedback = None;
+                        }
                     }
                 });
             });
@@ -74,6 +84,9 @@ impl EditorView {
                     selected_cards.clear();
                     let _ = multi_store.save_deck(deck, deck_source);
                 }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(format!("{} cards", deck.cards().len()));
+                });
             });
 
             ui.separator();
@@ -122,27 +135,55 @@ impl EditorView {
                     };
 
                     ui.push_id(i, |ui| {
-                        ui.horizontal(|ui| {
-                            let mut checked = selected_cards.contains(&i);
-                            if ui.checkbox(&mut checked, "").changed() {
-                                if checked {
-                                    selected_cards.insert(i);
-                                } else {
-                                    selected_cards.remove(&i);
-                                }
-                            }
-                        });
-                        egui::CollapsingHeader::new(&preview)
-                            .default_open(card_index == Some(i))
-                            .show(ui, |ui| {
-                                let avail_w = ui.available_width();
-                                let col_w = avail_w / 2.0 - 8.0;
+                        style::card_frame(ui).show(ui, |ui| {
+                            let id = ui.make_persistent_id(("card", i));
+                            let default_open = card_index == Some(i);
+                            let state =
+                                egui::collapsing_header::CollapsingState::load_with_default_open(
+                                    ui.ctx(),
+                                    id,
+                                    default_open,
+                                );
+                            let is_open = state.is_open();
 
-                                ui.horizontal(|ui| {
-                                    ui.vertical(|ui| {
-                                        ui.set_max_width(col_w);
-                                        let dark = ui.visuals().dark_mode;
-                                        let mut front_layouter = |ui: &egui::Ui,
+                            state
+                                .show_header(ui, |ui| {
+                                    let mut checked = selected_cards.contains(&i);
+                                    if ui.checkbox(&mut checked, "").changed() {
+                                        if checked {
+                                            selected_cards.insert(i);
+                                        } else {
+                                            selected_cards.remove(&i);
+                                        }
+                                    }
+                                    ui.label(egui::RichText::new(format!("#{}", i + 1)).strong());
+                                    ui.label(egui::RichText::new(&preview).weak().italics());
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            if ui.add(style::destructive_button("Delete")).clicked()
+                                            {
+                                                to_delete = Some(i);
+                                            }
+                                            if ui.add(style::accent_button("Save")).clicked() {
+                                                save_now = true;
+                                                texture_cache.clear();
+                                            }
+                                        },
+                                    );
+                                })
+                                .body_unindented(|ui| {
+                                    if is_open {
+                                        ui.separator();
+                                    }
+                                    let avail_w = ui.available_width();
+                                    let col_w = avail_w / 2.0 - 8.0;
+
+                                    ui.horizontal(|ui| {
+                                        ui.vertical(|ui| {
+                                            ui.set_max_width(col_w);
+                                            let dark = ui.visuals().dark_mode;
+                                            let mut front_layouter = |ui: &egui::Ui,
                                                                     text: &dyn egui::TextBuffer,
                                                                     wrap_width: f32| {
                                             let mut job =
@@ -150,18 +191,18 @@ impl EditorView {
                                             job.wrap.max_width = wrap_width;
                                             ui.fonts_mut(|f| f.layout_job(job))
                                         };
-                                        ui.label("Front (Typst):");
-                                        ui.add(
-                                            egui::TextEdit::multiline(
-                                                deck.cards_mut()[i].front_mut(),
-                                            )
-                                            .font(egui::TextStyle::Monospace)
-                                            .desired_rows(5)
-                                            .desired_width(col_w)
-                                            .layouter(&mut front_layouter),
-                                        );
-                                        ui.add_space(4.0);
-                                        let mut back_layouter = |ui: &egui::Ui,
+                                            ui.label("Front (Typst):");
+                                            ui.add(
+                                                egui::TextEdit::multiline(
+                                                    deck.cards_mut()[i].front_mut(),
+                                                )
+                                                .font(egui::TextStyle::Monospace)
+                                                .desired_rows(5)
+                                                .desired_width(col_w)
+                                                .layouter(&mut front_layouter),
+                                            );
+                                            ui.add_space(4.0);
+                                            let mut back_layouter = |ui: &egui::Ui,
                                                                    text: &dyn egui::TextBuffer,
                                                                    wrap_width: f32| {
                                             let mut job =
@@ -169,84 +210,101 @@ impl EditorView {
                                             job.wrap.max_width = wrap_width;
                                             ui.fonts_mut(|f| f.layout_job(job))
                                         };
-                                        ui.label("Back (Typst):");
-                                        ui.add(
-                                            egui::TextEdit::multiline(
-                                                deck.cards_mut()[i].back_mut(),
-                                            )
-                                            .font(egui::TextStyle::Monospace)
-                                            .desired_rows(5)
-                                            .desired_width(col_w)
-                                            .layouter(&mut back_layouter),
-                                        );
-                                        ui.add_space(4.0);
-                                        ui.label("Tags (comma-separated):");
-                                        let mut tags_str = deck.cards()[i].tags().join(", ");
-                                        if ui.text_edit_singleline(&mut tags_str).changed() {
-                                            *deck.cards_mut()[i].tags_mut() = tags_str
-                                                .split(',')
-                                                .map(|t| t.trim().to_string())
-                                                .filter(|t| !t.is_empty())
-                                                .collect();
-                                        }
-                                    });
+                                            ui.label("Back (Typst):");
+                                            ui.add(
+                                                egui::TextEdit::multiline(
+                                                    deck.cards_mut()[i].back_mut(),
+                                                )
+                                                .font(egui::TextStyle::Monospace)
+                                                .desired_rows(5)
+                                                .desired_width(col_w)
+                                                .layouter(&mut back_layouter),
+                                            );
+                                        });
 
-                                    ui.separator();
+                                        ui.separator();
 
-                                    ui.vertical(|ui| {
-                                        ui.set_max_width(col_w);
-                                        ui.horizontal(|ui| {
-                                            ui.label("Preview:");
-                                            if ui.small_button("Full Screen").clicked() {
-                                                *fullscreen_preview = Some(with_preamble(
-                                                    deck.preamble(),
-                                                    deck.cards()[i].front(),
-                                                ));
+                                        ui.vertical(|ui| {
+                                            ui.set_max_width(col_w);
+                                            let dark_mode = ui.visuals().dark_mode;
+
+                                            ui.horizontal(|ui| {
+                                                ui.label("Front Preview:");
+                                                if ui.small_button("Full Screen").clicked() {
+                                                    *fullscreen_preview = Some(with_preamble(
+                                                        deck.preamble(),
+                                                        deck.cards()[i].front(),
+                                                    ));
+                                                }
+                                            });
+                                            let front = deck.cards()[i].front().to_string();
+                                            let debounced_front =
+                                                preview_debounce.render_source(i, &front, ctx);
+                                            let front_source =
+                                                with_preamble(deck.preamble(), &debounced_front);
+                                            let front_key =
+                                                format!("editor-front-{i}-{front_source}");
+                                            match get_or_render(
+                                                ctx,
+                                                &front_key,
+                                                &front_source,
+                                                texture_cache,
+                                                dark_mode,
+                                            ) {
+                                                Ok(tex) => {
+                                                    ui.add(egui::Image::new(&tex).max_width(col_w));
+                                                }
+                                                Err(err) => {
+                                                    ui.colored_label(
+                                                        egui::Color32::RED,
+                                                        format!("Render error: {err}"),
+                                                    );
+                                                }
+                                            }
+
+                                            ui.add_space(8.0);
+                                            ui.separator();
+                                            ui.add_space(4.0);
+
+                                            ui.label("Back Preview:");
+                                            let back = deck.cards()[i].back().to_string();
+                                            let back_debounce_key = usize::MAX - i;
+                                            let debounced_back = preview_debounce.render_source(
+                                                back_debounce_key,
+                                                &back,
+                                                ctx,
+                                            );
+                                            let back_source =
+                                                with_preamble(deck.preamble(), &debounced_back);
+                                            let back_key = format!("editor-back-{i}-{back_source}");
+                                            match get_or_render(
+                                                ctx,
+                                                &back_key,
+                                                &back_source,
+                                                texture_cache,
+                                                dark_mode,
+                                            ) {
+                                                Ok(tex) => {
+                                                    ui.add(egui::Image::new(&tex).max_width(col_w));
+                                                }
+                                                Err(err) => {
+                                                    ui.colored_label(
+                                                        egui::Color32::RED,
+                                                        format!("Render error: {err}"),
+                                                    );
+                                                }
                                             }
                                         });
-                                        let front = deck.cards()[i].front().to_string();
-                                        let debounced =
-                                            preview_debounce.render_source(i, &front, ctx);
-                                        let source = with_preamble(deck.preamble(), &debounced);
-                                        let key = format!("editor-{i}-{source}");
-                                        let dark_mode = ui.visuals().dark_mode;
-                                        match get_or_render(
-                                            ctx,
-                                            &key,
-                                            &source,
-                                            texture_cache,
-                                            dark_mode,
-                                        ) {
-                                            Ok(tex) => {
-                                                ui.add(egui::Image::new(&tex).max_width(col_w));
-                                            }
-                                            Err(err) => {
-                                                ui.colored_label(
-                                                    egui::Color32::RED,
-                                                    format!("Render error: {err}"),
-                                                );
-                                            }
-                                        }
                                     });
                                 });
-
-                                ui.add_space(4.0);
-                                ui.horizontal(|ui| {
-                                    if ui.add(style::accent_button("Save")).clicked() {
-                                        save_now = true;
-                                        texture_cache.clear();
-                                    }
-                                    if ui.add(style::destructive_button("Delete")).clicked() {
-                                        to_delete = Some(i);
-                                    }
-                                });
-                            });
+                        });
                     });
-                    ui.add_space(4.0);
+                    ui.add_space(8.0);
                 }
 
                 if save_now {
                     let _ = multi_store.save_deck(deck, deck_source);
+                    *save_feedback = Some(std::time::Instant::now());
                 }
                 if let Some(idx) = to_delete {
                     deck.cards_mut().remove(idx);

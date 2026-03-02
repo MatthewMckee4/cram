@@ -6,7 +6,10 @@ use crate::style;
 pub struct SearchView;
 
 impl SearchView {
-    pub fn show(ui: &mut Ui, decks: &[&Deck], query: &mut String) {
+    /// Returns `Some((deck_name, card_index))` when a card is clicked for editing.
+    pub fn show(ui: &mut Ui, decks: &[&Deck], query: &mut String) -> Option<(String, usize)> {
+        let mut navigate_to = None;
+
         ui.vertical(|ui| {
             ui.add_space(16.0);
             ui.heading("Search Cards");
@@ -28,10 +31,11 @@ impl SearchView {
 
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for deck in decks {
-                    let matches: Vec<_> = deck
+                    let matches: Vec<(usize, _)> = deck
                         .cards()
                         .iter()
-                        .filter(|c| {
+                        .enumerate()
+                        .filter(|(_, c)| {
                             c.front().to_lowercase().contains(&lower_query)
                                 || c.back().to_lowercase().contains(&lower_query)
                         })
@@ -45,11 +49,24 @@ impl SearchView {
                     ui.heading(deck.name());
                     ui.separator();
 
-                    for card in matches {
-                        style::card_frame(ui).inner_margin(12.0).show(ui, |ui| {
-                            ui.label(egui::RichText::new(card.front()).strong());
-                            ui.label(card.back());
+                    for (card_idx, card) in matches {
+                        let resp = style::card_frame(ui).inner_margin(12.0).show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.vertical(|ui| {
+                                    ui.label(egui::RichText::new(card.front()).strong());
+                                    ui.label(card.back());
+                                });
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| ui.small_button("Edit"),
+                                )
+                                .inner
+                            })
+                            .inner
                         });
+                        if resp.inner.clicked() {
+                            navigate_to = Some((deck.name().to_string(), card_idx));
+                        }
                         ui.add_space(4.0);
                     }
                     ui.add_space(8.0);
@@ -60,5 +77,7 @@ impl SearchView {
                 }
             });
         });
+
+        navigate_to
     }
 }

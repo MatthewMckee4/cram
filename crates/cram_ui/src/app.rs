@@ -7,10 +7,7 @@ use egui::Context;
 
 use crate::sources::{SourceStatus, SourcesView};
 use crate::style;
-use crate::{
-    deck_list::DeckListView, editor::EditorView, search::SearchView, stats::StatsView,
-    study::StudyView,
-};
+use crate::{deck_list::DeckListView, editor::EditorView, search::SearchView, study::StudyView};
 
 #[derive(Default, Clone)]
 pub enum View {
@@ -27,7 +24,6 @@ pub enum View {
         card_index: Option<usize>,
     },
     NewDeck,
-    Stats,
     Search,
     Sources,
     SessionSummary {
@@ -52,6 +48,8 @@ pub struct CramApp {
     preview_debounce: PreviewDebounce,
     fullscreen_preview: Option<String>,
     sync_statuses: Vec<SourceStatus>,
+    save_feedback: Option<std::time::Instant>,
+    confirm_delete_deck: Option<String>,
 }
 
 #[derive(Default)]
@@ -132,6 +130,8 @@ impl CramApp {
             preview_debounce: PreviewDebounce::default(),
             fullscreen_preview: None,
             sync_statuses: Vec::new(),
+            save_feedback: None,
+            confirm_delete_deck: None,
         };
         if app.decks.is_empty() {
             app.seed_sample_deck();
@@ -184,7 +184,6 @@ impl eframe::App for CramApp {
                     ui.separator();
                     let nav = [
                         ("Decks", View::DeckList),
-                        ("Stats", View::Stats),
                         ("Search", View::Search),
                         ("Sources", View::Sources),
                     ];
@@ -245,7 +244,17 @@ impl eframe::App for CramApp {
                 View::DeckList => {
                     let deck_refs: Vec<(&Deck, &DeckSource)> =
                         self.decks.iter().map(|(d, s)| (d, s)).collect();
-                    DeckListView::show(ui, &deck_refs, &mut self.view, &mut self.new_deck_name);
+                    if let Some(name) = DeckListView::show(
+                        ui,
+                        ctx,
+                        &deck_refs,
+                        &mut self.view,
+                        &mut self.new_deck_name,
+                        &mut self.confirm_delete_deck,
+                    ) {
+                        let _ = self.multi_store.delete_deck(&name);
+                        self.reload_decks();
+                    }
                 }
                 View::Study {
                     deck_name,
@@ -300,6 +309,7 @@ impl eframe::App for CramApp {
                         &mut self.selected_cards,
                         &mut self.preview_debounce,
                         &mut self.fullscreen_preview,
+                        &mut self.save_feedback,
                     );
                     // Write modified decks back
                     for (i, (deck, _src)) in self.decks.iter_mut().enumerate() {
@@ -312,13 +322,16 @@ impl eframe::App for CramApp {
                         card_index,
                     };
                 }
-                View::Stats => {
-                    let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
-                    StatsView::show(ui, &deck_only);
-                }
                 View::Search => {
                     let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
-                    SearchView::show(ui, &deck_only, &mut self.search_query);
+                    if let Some((deck_name, card_index)) =
+                        SearchView::show(ui, &deck_only, &mut self.search_query)
+                    {
+                        self.view = View::Editor {
+                            deck_name,
+                            card_index: Some(card_index),
+                        };
+                    }
                 }
                 View::Sources => {
                     let prev_count = self.multi_store.sources().source.len();

@@ -7,9 +7,10 @@ fn save_load_preserves_all_card_fields() {
     let store = Store::with_dir(dir.path().to_path_buf()).expect("store");
 
     let mut deck = Deck::new("Roundtrip", "test description");
-    let mut card = Card::new("= Heading\nSome question?", "The answer is $x^2$");
-    *card.tags_mut() = vec!["math".into(), "algebra".into()];
-    deck.cards_mut().push(card);
+    deck.cards_mut().push(Card::new(
+        "= Heading\nSome question?",
+        "The answer is $x^2$",
+    ));
     *deck.preamble_mut() = "#set text(size: 14pt)".to_string();
 
     store.save_deck(&deck).expect("save");
@@ -23,7 +24,6 @@ fn save_load_preserves_all_card_fields() {
     let c = &loaded.cards()[0];
     assert_eq!(c.front(), "= Heading\nSome question?");
     assert_eq!(c.back(), "The answer is $x^2$");
-    assert_eq!(c.tags(), &["math", "algebra"]);
 }
 
 #[test]

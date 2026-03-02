@@ -4,7 +4,6 @@ mod editor;
 mod highlight;
 mod search;
 mod sources;
-mod stats;
 mod study;
 mod style;
 
