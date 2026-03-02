@@ -16,7 +16,7 @@ Mark items ✅ when done. Add new items freely.
 - [x] Import cards from CSV (front,back format)
 - [x] Export deck to CSV
 - [x] Card tags/categories within a deck
-- [ ] Bulk card operations (select all, delete selected)
+- [x] Bulk card operations (select all, delete selected)
 - [ ] Deck statistics: cards by interval bucket histogram
 - [ ] Study session summary screen (cards reviewed, time taken, retention %)
 - [ ] Undo last rating
