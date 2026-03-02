@@ -6,8 +6,6 @@ pub struct Card {
     id: Uuid,
     front: String,
     back: String,
-    #[serde(default)]
-    tags: Vec<String>,
 }
 
 impl Card {
@@ -16,7 +14,6 @@ impl Card {
             id: Uuid::new_v4(),
             front: front.into(),
             back: back.into(),
-            tags: Vec::new(),
         }
     }
 
@@ -39,14 +36,6 @@ impl Card {
     pub fn back_mut(&mut self) -> &mut String {
         &mut self.back
     }
-
-    pub fn tags(&self) -> &[String] {
-        &self.tags
-    }
-
-    pub fn tags_mut(&mut self) -> &mut Vec<String> {
-        &mut self.tags
-    }
 }
 
 #[cfg(test)]
@@ -68,12 +57,6 @@ mod tests {
     }
 
     #[test]
-    fn new_card_has_empty_tags() {
-        let card = Card::new("Q", "A");
-        assert!(card.tags().is_empty());
-    }
-
-    #[test]
     fn front_mut_allows_modification() {
         let mut card = Card::new("Q", "A");
         card.front_mut().push_str(" updated");
@@ -85,12 +68,5 @@ mod tests {
         let mut card = Card::new("Q", "A");
         card.back_mut().push_str(" updated");
         assert_eq!(card.back(), "A updated");
-    }
-
-    #[test]
-    fn tags_mut_allows_modification() {
-        let mut card = Card::new("Q", "A");
-        card.tags_mut().push("math".into());
-        assert_eq!(card.tags(), &["math"]);
     }
 }

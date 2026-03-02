@@ -1,6 +1,6 @@
 use cram_core::Deck;
 use cram_store::DeckSource;
-use egui::Ui;
+use egui::{Context, Ui};
 
 use crate::app::View;
 use crate::style;
@@ -8,12 +8,44 @@ use crate::style;
 pub struct DeckListView;
 
 impl DeckListView {
+    /// Returns `Some(deck_name)` when a deck deletion is confirmed.
     pub fn show(
         ui: &mut Ui,
+        ctx: &Context,
         decks: &[(&Deck, &DeckSource)],
         view: &mut View,
         new_deck_name: &mut String,
-    ) {
+        confirm_delete: &mut Option<String>,
+    ) -> Option<String> {
+        let mut deleted = None;
+
+        if let Some(deck_name) = confirm_delete.clone() {
+            let mut open = true;
+            egui::Window::new("Delete Deck")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .open(&mut open)
+                .show(ctx, |ui| {
+                    ui.label(format!(
+                        "Are you sure you want to delete \"{deck_name}\"? This cannot be undone."
+                    ));
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if ui.add(style::destructive_button("Delete")).clicked() {
+                            deleted = Some(deck_name);
+                            *confirm_delete = None;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            *confirm_delete = None;
+                        }
+                    });
+                });
+            if !open {
+                *confirm_delete = None;
+            }
+        }
+
         ui.vertical(|ui| {
             ui.add_space(16.0);
             ui.horizontal(|ui| {
@@ -94,6 +126,9 @@ impl DeckListView {
                                             card_index: None,
                                         };
                                     }
+                                    if ui.add(style::destructive_button("Delete")).clicked() {
+                                        *confirm_delete = Some(deck.name().to_string());
+                                    }
                                 });
                             });
                         });
@@ -104,6 +139,8 @@ impl DeckListView {
                     }
                 });
         });
+
+        deleted
     }
 }
 
