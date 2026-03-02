@@ -26,7 +26,7 @@ Mark items ✅ when done. Add new items freely.
 - [x] Auto-reload preview on keystroke with 300ms debounce
 - [x] Error display when Typst fails to compile
 - [x] Full-screen card preview mode
-- [ ] Custom Typst preamble per deck (shared imports, macros)
+- [x] Custom Typst preamble per deck (shared imports, macros)
 
 ## Phase 4 — Quality
 - [ ] Integration tests in it/ directory
