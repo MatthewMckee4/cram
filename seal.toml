@@ -1,0 +1,23 @@
+[release]
+current-version = "0.0.0"
+
+version-files = [
+    "crates/cram/Cargo.toml",
+    { path = "dist-workspace.toml", field = "workspace.version", format = "toml" }
+]
+
+commit-message = "Release v{version}"
+branch-name = "release/v{version}"
+push = true
+confirm = true
+
+[changelog.section-labels]
+"Bug Fixes" = ["bug"]
+"New Features" = ["enhancement"]
+"Documentation" = ["documentation"]
+
+[changelog]
+ignore-contributors = ["dependabot[bot]", "Copilot", "Claude"]
+ignore-labels = ["internal", "ci", "duplicate", "rust", "wontfix", "needs-decision"]
+include-contributors = true
+changelog-heading = "{version}"
