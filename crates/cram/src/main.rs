@@ -30,6 +30,9 @@ enum SelfCommand {
         /// GitHub API token for authentication (avoids rate limits)
         #[arg(long)]
         token: Option<String>,
+        /// Include pre-release versions (e.g. alpha, beta, rc)
+        #[arg(long)]
+        prerelease: bool,
     },
 }
 
@@ -48,8 +51,8 @@ fn main() {
             }
         }
         Some(Command::Self_ { command }) => match command {
-            SelfCommand::Update { token } => {
-                if let Err(e) = self_update(token) {
+            SelfCommand::Update { token, prerelease } => {
+                if let Err(e) = self_update(token, prerelease) {
                     eprintln!("cram: {e}");
                     std::process::exit(1);
                 }
@@ -59,11 +62,15 @@ fn main() {
     }
 }
 
-fn self_update(token: Option<String>) -> anyhow::Result<()> {
+fn self_update(token: Option<String>, prerelease: bool) -> anyhow::Result<()> {
     let mut updater = axoupdater::AxoUpdater::new_for("cram");
 
     if let Some(ref token) = token {
         updater.set_github_token(token);
+    }
+
+    if prerelease {
+        updater.configure_version_specifier(axoupdater::UpdateRequest::LatestMaybePrerelease);
     }
 
     if let Err(e) = updater.load_receipt() {
