@@ -25,7 +25,7 @@ Mark items ✅ when done. Add new items freely.
 - [x] Syntax highlighting in the Typst editor (using egui's code_editor or similar)
 - [x] Auto-reload preview on keystroke with 300ms debounce
 - [x] Error display when Typst fails to compile
-- [ ] Full-screen card preview mode
+- [x] Full-screen card preview mode
 - [ ] Custom Typst preamble per deck (shared imports, macros)
 
 ## Phase 4 — Quality
