@@ -42,7 +42,6 @@ pub struct CramApp {
     error_message: Option<String>,
     dark_mode: bool,
     search_query: String,
-    selected_cards: std::collections::HashSet<usize>,
     session_start: Option<std::time::Instant>,
     session_reviewed: u32,
     preview_debounce: PreviewDebounce,
@@ -124,7 +123,6 @@ impl CramApp {
             error_message: None,
             dark_mode: true,
             search_query: String::new(),
-            selected_cards: std::collections::HashSet::new(),
             session_start: None,
             session_reviewed: 0,
             preview_debounce: PreviewDebounce::default(),
@@ -177,7 +175,7 @@ impl CramApp {
 impl eframe::App for CramApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("topbar")
-            .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(8, 6)))
+            .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(16, 10)))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.heading("📚 Cram");
@@ -190,16 +188,8 @@ impl eframe::App for CramApp {
                     for (label, target) in nav {
                         let active =
                             std::mem::discriminant(&self.view) == std::mem::discriminant(&target);
-                        let btn = if active {
-                            egui::Button::new(
-                                egui::RichText::new(label).color(egui::Color32::WHITE),
-                            )
-                            .fill(style::ACCENT)
-                            .corner_radius(style::BUTTON_RADIUS)
-                        } else {
-                            egui::Button::new(label).corner_radius(style::BUTTON_RADIUS)
-                        };
-                        if ui.add(btn).clicked() {
+                        let text = egui::RichText::new(label).size(15.0);
+                        if ui.selectable_label(active, text).clicked() {
                             self.view = target;
                         }
                     }
@@ -239,176 +229,180 @@ impl eframe::App for CramApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            let view = self.view.clone();
-            match view {
-                View::DeckList => {
-                    let deck_refs: Vec<(&Deck, &DeckSource)> =
-                        self.decks.iter().map(|(d, s)| (d, s)).collect();
-                    if let Some(name) = DeckListView::show(
-                        ui,
-                        ctx,
-                        &deck_refs,
-                        &mut self.view,
-                        &mut self.new_deck_name,
-                        &mut self.confirm_delete_deck,
-                    ) {
-                        let _ = self.multi_store.delete_deck(&name);
-                        self.reload_decks();
-                    }
-                }
-                View::Study {
-                    deck_name,
-                    mut card_index,
-                    mut revealed,
-                    shuffled_indices,
-                } => {
-                    let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
-                    StudyView::show(
-                        ui,
-                        ctx,
-                        &deck_only,
-                        &deck_name,
-                        &mut card_index,
-                        &mut revealed,
-                        &mut self.texture_cache,
-                        &mut self.view,
-                        &mut self.session_reviewed,
-                        &mut self.session_start,
-                        &shuffled_indices,
-                    );
-                    if matches!(self.view, View::Study { .. }) {
-                        self.view = View::Study {
+            egui::Frame::new()
+                .inner_margin(style::CONTENT_PADDING)
+                .show(ui, |ui| {
+                    let view = self.view.clone();
+                    match view {
+                        View::DeckList => {
+                            let deck_refs: Vec<(&Deck, &DeckSource)> =
+                                self.decks.iter().map(|(d, s)| (d, s)).collect();
+                            if let Some(name) = DeckListView::show(
+                                ui,
+                                ctx,
+                                &deck_refs,
+                                &mut self.view,
+                                &mut self.new_deck_name,
+                                &mut self.confirm_delete_deck,
+                            ) {
+                                let _ = self.multi_store.delete_deck(&name);
+                                self.reload_decks();
+                            }
+                        }
+                        View::Study {
+                            deck_name,
+                            mut card_index,
+                            mut revealed,
+                            shuffled_indices,
+                        } => {
+                            let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
+                            StudyView::show(
+                                ui,
+                                ctx,
+                                &deck_only,
+                                &deck_name,
+                                &mut card_index,
+                                &mut revealed,
+                                &mut self.texture_cache,
+                                &mut self.view,
+                                &mut self.session_reviewed,
+                                &mut self.session_start,
+                                &shuffled_indices,
+                            );
+                            if matches!(self.view, View::Study { .. }) {
+                                self.view = View::Study {
+                                    deck_name,
+                                    card_index,
+                                    revealed,
+                                    shuffled_indices,
+                                };
+                            }
+                        }
+                        View::Editor {
                             deck_name,
                             card_index,
-                            revealed,
-                            shuffled_indices,
-                        };
-                    }
-                }
-                View::Editor {
-                    deck_name,
-                    card_index,
-                } => {
-                    let source = self
-                        .decks
-                        .iter()
-                        .find(|(d, _)| d.name() == deck_name)
-                        .map(|(_, s)| s.clone())
-                        .unwrap_or(DeckSource::Local);
-                    let mut deck_only: Vec<Deck> =
-                        self.decks.iter().map(|(d, _)| d.clone()).collect();
-                    EditorView::show(
-                        ui,
-                        ctx,
-                        &mut deck_only,
-                        &deck_name,
-                        card_index,
-                        &self.multi_store,
-                        &source,
-                        &mut self.texture_cache,
-                        &mut self.selected_cards,
-                        &mut self.preview_debounce,
-                        &mut self.fullscreen_preview,
-                        &mut self.save_feedback,
-                    );
-                    // Write modified decks back
-                    for (i, (deck, _src)) in self.decks.iter_mut().enumerate() {
-                        if i < deck_only.len() {
-                            *deck = deck_only[i].clone();
+                        } => {
+                            let source = self
+                                .decks
+                                .iter()
+                                .find(|(d, _)| d.name() == deck_name)
+                                .map(|(_, s)| s.clone())
+                                .unwrap_or(DeckSource::Local);
+                            let mut deck_only: Vec<Deck> =
+                                self.decks.iter().map(|(d, _)| d.clone()).collect();
+                            EditorView::show(
+                                ui,
+                                ctx,
+                                &mut deck_only,
+                                &deck_name,
+                                card_index,
+                                &self.multi_store,
+                                &source,
+                                &mut self.texture_cache,
+                                &mut self.preview_debounce,
+                                &mut self.fullscreen_preview,
+                                &mut self.save_feedback,
+                            );
+                            // Write modified decks back
+                            for (i, (deck, _src)) in self.decks.iter_mut().enumerate() {
+                                if i < deck_only.len() {
+                                    *deck = deck_only[i].clone();
+                                }
+                            }
+                            self.view = View::Editor {
+                                deck_name,
+                                card_index,
+                            };
+                        }
+                        View::Search => {
+                            let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
+                            if let Some((deck_name, card_index)) =
+                                SearchView::show(ui, &deck_only, &mut self.search_query)
+                            {
+                                self.view = View::Editor {
+                                    deck_name,
+                                    card_index: Some(card_index),
+                                };
+                            }
+                        }
+                        View::Sources => {
+                            let prev_count = self.multi_store.sources().source.len();
+                            SourcesView::show(
+                                ui,
+                                &mut self.multi_store,
+                                &mut self.sync_statuses,
+                                &mut self.error_message,
+                            );
+                            let new_count = self.multi_store.sources().source.len();
+                            if prev_count != new_count {
+                                self.reload_decks();
+                            }
+                        }
+                        View::SessionSummary {
+                            deck_name,
+                            cards_reviewed,
+                            elapsed_secs,
+                        } => {
+                            ui.vertical_centered(|ui| {
+                                ui.add_space(60.0);
+                                style::card_frame(ui).show(ui, |ui| {
+                                    ui.set_max_width(400.0);
+                                    ui.vertical_centered(|ui| {
+                                        ui.heading("Session Complete");
+                                        ui.add_space(style::SECTION_SPACING);
+                                        ui.label(format!("Deck: {deck_name}"));
+                                        ui.label(format!("Cards reviewed: {cards_reviewed}"));
+                                        let mins = elapsed_secs / 60;
+                                        let secs = elapsed_secs % 60;
+                                        ui.label(format!("Time: {mins}m {secs}s"));
+                                        ui.add_space(style::SECTION_SPACING);
+                                        if ui.add(style::accent_button("Back to Decks")).clicked() {
+                                            self.view = View::DeckList;
+                                        }
+                                    });
+                                });
+                            });
+                        }
+                        View::NewDeck => {
+                            ui.vertical_centered(|ui| {
+                                ui.add_space(80.0);
+                                style::card_frame(ui).show(ui, |ui| {
+                                    ui.set_max_width(400.0);
+                                    ui.vertical_centered(|ui| {
+                                        ui.heading("New Deck");
+                                        ui.add_space(style::SECTION_SPACING);
+                                        ui.horizontal(|ui| {
+                                            ui.label("Name:");
+                                            ui.text_edit_singleline(&mut self.new_deck_name);
+                                        });
+                                        ui.add_space(style::ITEM_SPACING);
+                                        ui.horizontal(|ui| {
+                                            if ui.add(style::accent_button("Create")).clicked()
+                                                && !self.new_deck_name.is_empty()
+                                            {
+                                                let deck = Deck::new(self.new_deck_name.trim(), "");
+                                                if let Err(e) = self
+                                                    .multi_store
+                                                    .save_deck(&deck, &DeckSource::Local)
+                                                {
+                                                    self.error_message =
+                                                        Some(format!("Failed to save: {e}"));
+                                                } else {
+                                                    self.decks.push((deck, DeckSource::Local));
+                                                    self.view = View::DeckList;
+                                                    self.new_deck_name.clear();
+                                                }
+                                            }
+                                            if ui.add(style::secondary_button("Cancel")).clicked() {
+                                                self.view = View::DeckList;
+                                            }
+                                        });
+                                    });
+                                });
+                            });
                         }
                     }
-                    self.view = View::Editor {
-                        deck_name,
-                        card_index,
-                    };
-                }
-                View::Search => {
-                    let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
-                    if let Some((deck_name, card_index)) =
-                        SearchView::show(ui, &deck_only, &mut self.search_query)
-                    {
-                        self.view = View::Editor {
-                            deck_name,
-                            card_index: Some(card_index),
-                        };
-                    }
-                }
-                View::Sources => {
-                    let prev_count = self.multi_store.sources().source.len();
-                    SourcesView::show(
-                        ui,
-                        &mut self.multi_store,
-                        &mut self.sync_statuses,
-                        &mut self.error_message,
-                    );
-                    let new_count = self.multi_store.sources().source.len();
-                    if prev_count != new_count {
-                        self.reload_decks();
-                    }
-                }
-                View::SessionSummary {
-                    deck_name,
-                    cards_reviewed,
-                    elapsed_secs,
-                } => {
-                    ui.vertical_centered(|ui| {
-                        ui.add_space(60.0);
-                        style::card_frame(ui).show(ui, |ui| {
-                            ui.set_max_width(400.0);
-                            ui.vertical_centered(|ui| {
-                                ui.heading("Session Complete");
-                                ui.add_space(16.0);
-                                ui.label(format!("Deck: {deck_name}"));
-                                ui.label(format!("Cards reviewed: {cards_reviewed}"));
-                                let mins = elapsed_secs / 60;
-                                let secs = elapsed_secs % 60;
-                                ui.label(format!("Time: {mins}m {secs}s"));
-                                ui.add_space(16.0);
-                                if ui.add(style::accent_button("Back to Decks")).clicked() {
-                                    self.view = View::DeckList;
-                                }
-                            });
-                        });
-                    });
-                }
-                View::NewDeck => {
-                    ui.vertical_centered(|ui| {
-                        ui.add_space(80.0);
-                        style::card_frame(ui).show(ui, |ui| {
-                            ui.set_max_width(400.0);
-                            ui.vertical_centered(|ui| {
-                                ui.heading("New Deck");
-                                ui.add_space(20.0);
-                                ui.horizontal(|ui| {
-                                    ui.label("Name:");
-                                    ui.text_edit_singleline(&mut self.new_deck_name);
-                                });
-                                ui.add_space(10.0);
-                                ui.horizontal(|ui| {
-                                    if ui.add(style::accent_button("Create")).clicked()
-                                        && !self.new_deck_name.is_empty()
-                                    {
-                                        let deck = Deck::new(self.new_deck_name.trim(), "");
-                                        if let Err(e) =
-                                            self.multi_store.save_deck(&deck, &DeckSource::Local)
-                                        {
-                                            self.error_message =
-                                                Some(format!("Failed to save: {e}"));
-                                        } else {
-                                            self.decks.push((deck, DeckSource::Local));
-                                            self.view = View::DeckList;
-                                            self.new_deck_name.clear();
-                                        }
-                                    }
-                                    if ui.button("Cancel").clicked() {
-                                        self.view = View::DeckList;
-                                    }
-                                });
-                            });
-                        });
-                    });
-                }
-            }
+                });
         });
 
         if self.fullscreen_preview.is_some() {

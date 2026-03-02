@@ -19,7 +19,6 @@ impl EditorView {
         multi_store: &MultiStore,
         deck_source: &DeckSource,
         texture_cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
-        selected_cards: &mut std::collections::HashSet<usize>,
         preview_debounce: &mut PreviewDebounce,
         fullscreen_preview: &mut Option<String>,
         save_feedback: &mut Option<std::time::Instant>,
@@ -32,8 +31,18 @@ impl EditorView {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.heading(format!("Edit: {deck_name}"));
+                if let DeckSource::Linked(path) = deck_source {
+                    ui.label(
+                        egui::RichText::new(shorten_home(path))
+                            .small()
+                            .color(ui.visuals().weak_text_color()),
+                    );
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add(style::accent_button("+ Add Card")).clicked() {
+                    if ui
+                        .add(style::accent_button("+ Add Card").min_size(egui::vec2(140.0, 34.0)))
+                        .clicked()
+                    {
                         deck.cards_mut().push(Card::new("Front", "Back"));
                         let _ = multi_store.save_deck(deck, deck_source);
                     }
@@ -49,47 +58,8 @@ impl EditorView {
                 });
             });
 
-            ui.horizontal(|ui| {
-                let all_selected =
-                    !deck.cards().is_empty() && selected_cards.len() == deck.cards().len();
-                if ui
-                    .button(if all_selected {
-                        "Deselect All"
-                    } else {
-                        "Select All"
-                    })
-                    .clicked()
-                {
-                    if all_selected {
-                        selected_cards.clear();
-                    } else {
-                        *selected_cards = (0..deck.cards().len()).collect();
-                    }
-                }
-                if !selected_cards.is_empty()
-                    && ui
-                        .add(style::destructive_button(&format!(
-                            "Delete Selected ({})",
-                            selected_cards.len()
-                        )))
-                        .clicked()
-                {
-                    let mut indices: Vec<usize> = selected_cards.iter().copied().collect();
-                    indices.sort_unstable_by(|a, b| b.cmp(a));
-                    for idx in indices {
-                        if idx < deck.cards().len() {
-                            deck.cards_mut().remove(idx);
-                        }
-                    }
-                    selected_cards.clear();
-                    let _ = multi_store.save_deck(deck, deck_source);
-                }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(format!("{} cards", deck.cards().len()));
-                });
-            });
-
             ui.separator();
+            ui.add_space(style::SECTION_SPACING);
 
             egui::CollapsingHeader::new("Deck Preamble (shared Typst)")
                 .default_open(!deck.preamble().is_empty())
@@ -148,24 +118,29 @@ impl EditorView {
 
                             state
                                 .show_header(ui, |ui| {
-                                    let mut checked = selected_cards.contains(&i);
-                                    if ui.checkbox(&mut checked, "").changed() {
-                                        if checked {
-                                            selected_cards.insert(i);
-                                        } else {
-                                            selected_cards.remove(&i);
-                                        }
-                                    }
+                                    ui.spacing_mut().interact_size.y = 28.0;
                                     ui.label(egui::RichText::new(format!("#{}", i + 1)).strong());
                                     ui.label(egui::RichText::new(&preview).weak().italics());
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            if ui.add(style::destructive_button("Delete")).clicked()
+                                            let header_btn = egui::vec2(80.0, 28.0);
+                                            if ui
+                                                .add(
+                                                    style::destructive_button("Delete")
+                                                        .min_size(header_btn),
+                                                )
+                                                .clicked()
                                             {
                                                 to_delete = Some(i);
                                             }
-                                            if ui.add(style::accent_button("Save")).clicked() {
+                                            if ui
+                                                .add(
+                                                    style::accent_button("Save")
+                                                        .min_size(header_btn),
+                                                )
+                                                .clicked()
+                                            {
                                                 save_now = true;
                                                 texture_cache.clear();
                                             }
@@ -177,7 +152,7 @@ impl EditorView {
                                         ui.separator();
                                     }
                                     let avail_w = ui.available_width();
-                                    let col_w = avail_w / 2.0 - 8.0;
+                                    let col_w = avail_w / 2.0 - 16.0;
 
                                     ui.horizontal(|ui| {
                                         ui.vertical(|ui| {
@@ -299,7 +274,7 @@ impl EditorView {
                                 });
                         });
                     });
-                    ui.add_space(8.0);
+                    ui.add_space(style::ITEM_SPACING);
                 }
 
                 if save_now {
@@ -313,6 +288,15 @@ impl EditorView {
             });
         });
     }
+}
+
+fn shorten_home(path: &std::path::Path) -> String {
+    if let Some(home) = dirs::home_dir()
+        && let Ok(rest) = path.strip_prefix(&home)
+    {
+        return format!("~/{}", rest.display());
+    }
+    path.display().to_string()
 }
 
 fn with_preamble(preamble: &str, body: &str) -> String {

@@ -63,7 +63,7 @@ impl StudyView {
             ui.add(egui::ProgressBar::new(fraction).text(&progress));
 
             ui.separator();
-            ui.add_space(16.0);
+            ui.add_space(24.0);
 
             let card_text = if *revealed {
                 deck.cards()[card_pos].back().to_string()
@@ -94,12 +94,12 @@ impl StudyView {
                 });
             });
 
-            ui.add_space(16.0);
+            ui.add_space(24.0);
 
             if !*revealed {
                 ui.vertical_centered(|ui| {
                     let btn = style::accent_button("Show Answer  [Space]")
-                        .min_size(egui::vec2(200.0, 40.0))
+                        .min_size(egui::vec2(240.0, 44.0))
                         .corner_radius(8.0);
                     if ui.add(btn).clicked() || ui.input(|i| i.key_pressed(egui::Key::Space)) {
                         *revealed = true;
@@ -108,7 +108,7 @@ impl StudyView {
             } else {
                 ui.vertical_centered(|ui| {
                     let btn = style::accent_button("Next  [Space]")
-                        .min_size(egui::vec2(200.0, 40.0))
+                        .min_size(egui::vec2(240.0, 44.0))
                         .corner_radius(8.0);
                     if ui.add(btn).clicked() || ui.input(|i| i.key_pressed(egui::Key::Space)) {
                         *session_reviewed += 1;
