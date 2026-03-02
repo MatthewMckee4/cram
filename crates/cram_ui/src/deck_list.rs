@@ -93,6 +93,18 @@ impl DeckListView {
                                             };
                                         }
                                     });
+                                    ui.horizontal(|ui| {
+                                        if ui.small_button("Import CSV").clicked() {
+                                            *view = View::ImportCsv {
+                                                deck_name: deck.name.clone(),
+                                            };
+                                        }
+                                        if ui.small_button("Export CSV").clicked() {
+                                            *view = View::ExportCsv {
+                                                deck_name: deck.name.clone(),
+                                            };
+                                        }
+                                    });
                                 });
                             });
 
