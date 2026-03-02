@@ -73,6 +73,16 @@ impl EditorView {
                                                 .desired_rows(5)
                                                 .desired_width(col_w),
                                         );
+                                        ui.add_space(4.0);
+                                        ui.label("Tags (comma-separated):");
+                                        let mut tags_str = deck.cards[i].tags.join(", ");
+                                        if ui.text_edit_singleline(&mut tags_str).changed() {
+                                            deck.cards[i].tags = tags_str
+                                                .split(',')
+                                                .map(|t| t.trim().to_string())
+                                                .filter(|t| !t.is_empty())
+                                                .collect();
+                                        }
                                     });
 
                                     ui.separator();

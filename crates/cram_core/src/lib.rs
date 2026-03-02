@@ -11,6 +11,8 @@ pub struct Card {
     pub interval: f64,
     pub ease: f64,
     pub reps: u32,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 impl Card {
@@ -23,6 +25,7 @@ impl Card {
             interval: 1.0,
             ease: 2.5,
             reps: 0,
+            tags: Vec::new(),
         }
     }
 }
@@ -117,6 +120,7 @@ mod tests {
             interval: 2.0,
             ease: 2.5,
             reps: 1,
+            tags: Vec::new(),
         }
     }
 
@@ -186,5 +190,6 @@ mod tests {
         assert_eq!(card.ease, 2.5);
         assert_eq!(card.interval, 1.0);
         assert_eq!(card.reps, 0);
+        assert!(card.tags.is_empty());
     }
 }
