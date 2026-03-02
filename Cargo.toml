@@ -19,9 +19,9 @@ cram_ui      = { path = "crates/cram_ui" }
 anyhow        = "1"
 chrono        = { version = "0.4", features = ["serde"] }
 dirs          = "5"
-eframe        = { version = "0.31", features = ["default"] }
-egui          = "0.31"
-egui_extras   = { version = "0.31", features = ["image"] }
+eframe        = { version = "0.33", features = ["default"] }
+egui          = "0.33"
+egui_extras   = { version = "0.33", features = ["image"] }
 image         = { version = "0.25", features = ["png"] }
 serde         = { version = "1", features = ["derive"] }
 serde_json    = "1"
@@ -29,6 +29,9 @@ thiserror     = "2"
 toml          = "0.8"
 tracing       = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-typst         = "0.13"
-typst-render  = "0.13"
-uuid          = { version = "1", features = ["v4"] }
+typst         = "0.14"
+typst-render  = "0.14"
+typst-kit     = { version = "0.14", features = ["fonts", "embed-fonts"] }
+typst-assets  = "0.14"
+uuid          = { version = "1", features = ["v4", "serde"] }
+tempfile      = "3"

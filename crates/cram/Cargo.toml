@@ -10,8 +10,9 @@ name = "cram"
 path = "src/main.rs"
 
 [dependencies]
-cram_ui.workspace = true
 anyhow.workspace = true
+cram_ui.workspace = true
 eframe.workspace = true
+egui.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
