@@ -33,6 +33,12 @@ pub enum View {
     DeckStats {
         deck_name: String,
     },
+    SessionSummary {
+        deck_name: String,
+        cards_reviewed: u32,
+        correct: u32,
+        elapsed_secs: u64,
+    },
 }
 
 pub struct CramApp {
@@ -46,6 +52,9 @@ pub struct CramApp {
     search_query: String,
     csv_buffer: String,
     selected_cards: std::collections::HashSet<usize>,
+    session_start: Option<std::time::Instant>,
+    session_reviewed: u32,
+    session_correct: u32,
 }
 
 impl CramApp {
@@ -63,6 +72,9 @@ impl CramApp {
             search_query: String::new(),
             csv_buffer: String::new(),
             selected_cards: std::collections::HashSet::new(),
+            session_start: None,
+            session_reviewed: 0,
+            session_correct: 0,
         };
         // Seed sample deck if nothing exists
         if app.decks.is_empty() {
@@ -342,6 +354,9 @@ impl eframe::App for CramApp {
                         &self.store,
                         &mut self.texture_cache,
                         &mut self.view,
+                        &mut self.session_reviewed,
+                        &mut self.session_correct,
+                        &mut self.session_start,
                     );
                     if matches!(self.view, View::Study { .. }) {
                         self.view = View::Study {
@@ -392,6 +407,33 @@ impl eframe::App for CramApp {
                 }
                 View::DeckStats { deck_name } => {
                     Self::show_deck_stats(ui, &self.decks, &deck_name);
+                }
+                View::SessionSummary {
+                    deck_name,
+                    cards_reviewed,
+                    correct,
+                    elapsed_secs,
+                } => {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(60.0);
+                        ui.heading("Session Complete");
+                        ui.add_space(16.0);
+                        ui.label(format!("Deck: {deck_name}"));
+                        ui.label(format!("Cards reviewed: {cards_reviewed}"));
+                        let retention = if cards_reviewed > 0 {
+                            correct as f64 / cards_reviewed as f64 * 100.0
+                        } else {
+                            0.0
+                        };
+                        ui.label(format!("Retention: {retention:.0}%"));
+                        let mins = elapsed_secs / 60;
+                        let secs = elapsed_secs % 60;
+                        ui.label(format!("Time: {mins}m {secs}s"));
+                        ui.add_space(16.0);
+                        if ui.button("Back to Decks").clicked() {
+                            self.view = View::DeckList;
+                        }
+                    });
                 }
                 View::NewDeck => {
                     ui.vertical_centered(|ui| {

@@ -18,7 +18,14 @@ impl StudyView {
         store: &Store,
         texture_cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
         view: &mut View,
+        session_reviewed: &mut u32,
+        session_correct: &mut u32,
+        session_start: &mut Option<std::time::Instant>,
     ) {
+        if session_start.is_none() {
+            *session_start = Some(std::time::Instant::now());
+        }
+
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             *view = View::DeckList;
             return;
@@ -142,7 +149,25 @@ impl StudyView {
                     if let Err(e) = store.save_deck(deck) {
                         tracing::warn!("save failed: {e}");
                     }
-                    *card_index = (*card_index + 1) % due_indices.len().max(1);
+                    *session_reviewed += 1;
+                    if matches!(rating, Rating::Good | Rating::Easy) {
+                        *session_correct += 1;
+                    }
+                    let next = *card_index + 1;
+                    if next >= due_indices.len() {
+                        let elapsed = session_start.map(|s| s.elapsed().as_secs()).unwrap_or(0);
+                        *view = View::SessionSummary {
+                            deck_name: deck_name.to_string(),
+                            cards_reviewed: *session_reviewed,
+                            correct: *session_correct,
+                            elapsed_secs: elapsed,
+                        };
+                        *session_reviewed = 0;
+                        *session_correct = 0;
+                        *session_start = None;
+                    } else {
+                        *card_index = next;
+                    }
                     *revealed = false;
                 }
             }
