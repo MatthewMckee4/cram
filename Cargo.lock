@@ -1075,23 +1075,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "cram_it"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "cram_core",
- "cram_render",
- "cram_store",
- "tempfile",
-]
-
-[[package]]
 name = "cram_render"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "cram_core",
+ "cram_store",
  "criterion",
  "image",
+ "tempfile",
  "thiserror 2.0.18",
  "typst",
  "typst-kit",

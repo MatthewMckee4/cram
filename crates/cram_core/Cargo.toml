@@ -9,3 +9,6 @@ license.workspace = true
 chrono.workspace = true
 serde.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+chrono.workspace = true

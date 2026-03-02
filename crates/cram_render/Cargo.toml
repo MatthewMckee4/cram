@@ -13,8 +13,11 @@ typst-kit.workspace = true
 typst-render.workspace = true
 
 [dev-dependencies]
+cram_core.workspace = true
+cram_store.workspace = true
 criterion.workspace = true
 image.workspace = true
+tempfile.workspace = true
 
 [[bench]]
 name = "render_throughput"
