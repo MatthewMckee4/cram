@@ -13,8 +13,8 @@ Mark items ✅ when done. Add new items freely.
 - [x] Empty state illustration when no decks
 
 ## Phase 2 — Power Features
-- [ ] Import cards from CSV (front,back format)
-- [ ] Export deck to CSV
+- [x] Import cards from CSV (front,back format)
+- [x] Export deck to CSV
 - [ ] Card tags/categories within a deck
 - [ ] Bulk card operations (select all, delete selected)
 - [ ] Deck statistics: cards by interval bucket histogram
