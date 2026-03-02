@@ -3,28 +3,28 @@
 ## Creating your first deck
 
 1. Launch Cram — it opens to the deck list view
-2. Click **+ New Deck** and enter a name
-3. A sample "Rust Basics" deck is created automatically on first launch
+1. Click **+ New Deck** and enter a name
+1. A sample "Rust Basics" deck is created automatically on first launch
 
 ## Adding cards
 
 1. Click **Edit** on any deck to open the card editor
-2. Click **+ Add Card** to create a new card
-3. Write Typst markup in the **Front** and **Back** fields
-4. The preview updates automatically as you type (with 300ms debounce)
-5. Click **Save** to persist changes, or **Full Screen** to preview at full size
+1. Click **+ Add Card** to create a new card
+1. Write Typst markup in the **Front** and **Back** fields
+1. The preview updates automatically as you type (with 300ms debounce)
+1. Click **Save** to persist changes, or **Full Screen** to preview at full size
 
 ## Studying
 
 1. Click **Study** on a deck with due cards
-2. The front of the card is shown — press **Space** or click **Show Answer** to reveal the back
-3. Rate your recall using the buttons or keyboard shortcuts:
+1. The front of the card is shown — press **Space** or click **Show Answer** to reveal the back
+1. Rate your recall using the buttons or keyboard shortcuts:
    - **1** — Again (complete blackout, reset interval)
    - **2** — Hard (correct with difficulty)
    - **3** — Good (correct with some effort)
    - **4** — Easy (perfect recall)
-4. Press **Esc** to return to the deck list at any time
-5. After all due cards are reviewed, a session summary shows your retention and time
+1. Press **Esc** to return to the deck list at any time
+1. After all due cards are reviewed, a session summary shows your retention and time
 
 ## Using the preamble
 
