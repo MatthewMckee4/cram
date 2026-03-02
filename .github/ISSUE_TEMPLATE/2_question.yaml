@@ -1,0 +1,10 @@
+name: Question
+description: Ask a question about cram
+labels: ["help wanted"]
+body:
+  - type: textarea
+    attributes:
+      label: Question
+      description: Describe your question in detail.
+    validations:
+      required: true

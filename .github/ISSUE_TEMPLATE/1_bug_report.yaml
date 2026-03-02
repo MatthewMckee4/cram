@@ -1,0 +1,22 @@
+name: Bug report
+description: Report an error or unexpected behavior
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue!
+
+        **Before reporting, please search [existing issues](https://github.com/MatthewMckee4/cram/issues?q=is:issue+label:bug).**
+
+  - type: textarea
+    attributes:
+      label: Summary
+      description: A clear description of the bug and how to reproduce it.
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Version
+      description: What version of cram are you using? (`cram --version`)
+      placeholder: e.g., cram 0.1.0

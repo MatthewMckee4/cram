@@ -36,3 +36,6 @@ typst-assets  = "0.14"
 uuid          = { version = "1", features = ["v4", "serde"] }
 tempfile      = "3"
 criterion     = { version = "0.5", features = ["html_reports"] }
+
+[profile.dev]
+opt-level = 0
