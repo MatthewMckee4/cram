@@ -140,10 +140,16 @@ impl EditorView {
                                         ui.label("Preview:");
                                         let front = deck.cards[i].front.clone();
                                         let key = format!("editor-{i}-{front}");
-                                        if let Some(tex) =
-                                            get_or_render(ctx, &key, &front, texture_cache)
-                                        {
-                                            ui.add(egui::Image::new(&tex).max_width(col_w));
+                                        match get_or_render(ctx, &key, &front, texture_cache) {
+                                            Ok(tex) => {
+                                                ui.add(egui::Image::new(&tex).max_width(col_w));
+                                            }
+                                            Err(err) => {
+                                                ui.colored_label(
+                                                    egui::Color32::RED,
+                                                    format!("Render error: {err}"),
+                                                );
+                                            }
                                         }
                                     });
                                 });
@@ -180,16 +186,16 @@ fn get_or_render(
     key: &str,
     source: &str,
     cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
-) -> Option<egui::TextureHandle> {
+) -> Result<egui::TextureHandle, String> {
     if let Some(h) = cache.get(key) {
-        return Some(h.clone());
+        return Ok(h.clone());
     }
-    let png = cram_render::render(source).ok()?;
-    let img = image::load_from_memory(&png).ok()?;
+    let png = cram_render::render(source).map_err(|e| e.to_string())?;
+    let img = image::load_from_memory(&png).map_err(|e| e.to_string())?;
     let rgba = img.to_rgba8();
     let (w, h) = rgba.dimensions();
     let ci = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &rgba);
     let handle = ctx.load_texture(key, ci, egui::TextureOptions::LINEAR);
     cache.insert(key.to_string(), handle.clone());
-    Some(handle)
+    Ok(handle)
 }

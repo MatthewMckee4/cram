@@ -80,7 +80,7 @@ impl StudyView {
                 deck.cards[card_pos].front.clone()
             };
 
-            let texture = get_or_render(ctx, &card_source, &card_source, texture_cache);
+            let render_result = get_or_render(ctx, &card_source, &card_source, texture_cache);
 
             egui::Frame::new()
                 .fill(ui.visuals().window_fill)
@@ -89,11 +89,13 @@ impl StudyView {
                 .stroke(ui.visuals().window_stroke)
                 .show(ui, |ui| {
                     ui.set_min_size(egui::vec2(ui.available_width(), 320.0));
-                    ui.vertical_centered(|ui| {
-                        if let Some(tex) = texture {
+                    ui.vertical_centered(|ui| match &render_result {
+                        Ok(tex) => {
                             let max_w = ui.available_width().min(600.0);
-                            ui.add(egui::Image::new(&tex).max_width(max_w));
-                        } else {
+                            ui.add(egui::Image::new(tex).max_width(max_w));
+                        }
+                        Err(err) => {
+                            ui.colored_label(egui::Color32::RED, format!("Render error: {err}"));
                             ui.label(&card_source);
                         }
                     });
@@ -205,16 +207,16 @@ fn get_or_render(
     key: &str,
     source: &str,
     cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
-) -> Option<egui::TextureHandle> {
+) -> Result<egui::TextureHandle, String> {
     if let Some(h) = cache.get(key) {
-        return Some(h.clone());
+        return Ok(h.clone());
     }
-    let png = cram_render::render(source).ok()?;
-    let img = image::load_from_memory(&png).ok()?;
+    let png = cram_render::render(source).map_err(|e| e.to_string())?;
+    let img = image::load_from_memory(&png).map_err(|e| e.to_string())?;
     let rgba = img.to_rgba8();
     let (w, h) = rgba.dimensions();
     let color_image = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &rgba);
     let handle = ctx.load_texture(key, color_image, egui::TextureOptions::LINEAR);
     cache.insert(key.to_string(), handle.clone());
-    Some(handle)
+    Ok(handle)
 }
