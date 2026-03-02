@@ -43,6 +43,7 @@ uvx prek run -a    # run all pre-commit hooks
 ## Data Storage
 
 Decks stored as TOML at `~/.local/share/cram/decks/<name>.toml`:
+
 ```toml
 [deck]
 name = "Rust Ownership"
@@ -61,10 +62,11 @@ reps = 0
 ## SM-2 Algorithm
 
 After each card review, user rates 1-4 (Again/Hard/Good/Easy):
+
 - 1 (Again): reset interval to 1, ease -= 0.2
-- 2 (Hard): interval *= 1.2, ease -= 0.15
-- 3 (Good): interval *= ease
-- 4 (Easy): interval *= ease * 1.3, ease += 0.1
+- 2 (Hard): interval \*= 1.2, ease -= 0.15
+- 3 (Good): interval \*= ease
+- 4 (Easy): interval \*= ease * 1.3, ease += 0.1
 - ease clamped to [1.3, 2.5]
 - due date = today + interval days
 
