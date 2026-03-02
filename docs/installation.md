@@ -34,9 +34,3 @@ just test          # uses cargo-nextest if available, else cargo test
 cargo clippy --all-targets --all-features -- -D warnings
 cargo fmt --check
 ```
-
-## Benchmarks
-
-```bash
-cargo bench --bench render_throughput
-```
