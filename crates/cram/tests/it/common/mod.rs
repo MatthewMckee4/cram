@@ -20,8 +20,6 @@ impl TestContext {
         let root = tempfile::TempDir::with_prefix("cram-test")
             .expect("Failed to create test root directory");
 
-        eprintln!("{}", root.path().display());
-
         let decks_dir = root.path().join("decks");
 
         let mut filters = Vec::new();
