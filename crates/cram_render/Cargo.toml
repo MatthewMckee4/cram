@@ -16,6 +16,7 @@ typst-render.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
+image.workspace = true
 
 [[bench]]
 name = "render_throughput"

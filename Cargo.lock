@@ -1087,6 +1087,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "criterion",
+ "image",
  "thiserror 2.0.18",
  "typst",
  "typst-assets",

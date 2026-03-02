@@ -24,7 +24,9 @@ pub enum RenderError {
 /// # Errors
 /// Returns [`RenderError`] if the source fails to compile or produces no pages.
 pub fn render(source: &str) -> Result<Vec<u8>, RenderError> {
-    let world = CramWorld::new(source);
+    let preamble =
+        format!("#set page(width: auto, height: auto, margin: 0.6em, fill: none)\n{source}");
+    let world = CramWorld::new(&preamble);
     let result = typst::compile::<PagedDocument>(&world);
     let document = result.output.map_err(|errors| {
         RenderError::Compile(
@@ -122,6 +124,15 @@ mod tests {
     fn render_math_equation() {
         let bytes = render("$ x^2 + y^2 = z^2 $").expect("math render failed");
         assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn render_is_compact_not_full_a4() {
+        let bytes = render("= Hello").expect("render failed");
+        let img = image::load_from_memory(&bytes).expect("decode failed");
+        // A4 at 2x = ~1190x1684px — compact should be much smaller
+        assert!(img.width() < 800, "width {} too large", img.width());
+        assert!(img.height() < 400, "height {} too large", img.height());
     }
 
     #[test]
