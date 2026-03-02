@@ -11,6 +11,7 @@ authors = ["Matthew McKee <matthewmckee04@yahoo.co.uk>"]
 license = "MIT"
 
 [workspace.dependencies]
+cram_cli = { path = "crates/cram_cli" }
 cram_core = { path = "crates/cram_core" }
 cram_render = { path = "crates/cram_render" }
 cram_store = { path = "crates/cram_store" }

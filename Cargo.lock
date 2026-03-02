@@ -1228,11 +1228,19 @@ dependencies = [
  "anyhow",
  "axoupdater",
  "clap",
+ "cram_cli",
  "cram_store",
  "cram_ui",
  "eframe",
  "egui",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "cram_cli"
+version = "0.0.0"
+dependencies = [
+ "clap",
 ]
 
 [[package]]
