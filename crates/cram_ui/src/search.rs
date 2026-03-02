@@ -11,9 +11,9 @@ impl SearchView {
         let mut navigate_to = None;
 
         ui.vertical(|ui| {
-            ui.add_space(16.0);
+            ui.add_space(style::SECTION_SPACING);
             ui.heading("Search Cards");
-            ui.add_space(8.0);
+            ui.add_space(12.0);
 
             ui.horizontal(|ui| {
                 ui.label("Query:");
@@ -50,7 +50,7 @@ impl SearchView {
                     ui.separator();
 
                     for (card_idx, card) in matches {
-                        let resp = style::card_frame(ui).inner_margin(12.0).show(ui, |ui| {
+                        let resp = style::card_frame(ui).inner_margin(16.0).show(ui, |ui| {
                             ui.horizontal(|ui| {
                                 ui.vertical(|ui| {
                                     ui.label(egui::RichText::new(card.front()).strong());
@@ -67,9 +67,9 @@ impl SearchView {
                         if resp.inner.clicked() {
                             navigate_to = Some((deck.name().to_string(), card_idx));
                         }
-                        ui.add_space(4.0);
+                        ui.add_space(style::ITEM_SPACING);
                     }
-                    ui.add_space(8.0);
+                    ui.add_space(style::SECTION_SPACING);
                 }
 
                 if !found {

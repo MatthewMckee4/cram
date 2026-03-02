@@ -79,7 +79,7 @@ impl SourcesView {
         error_message: &mut Option<String>,
     ) {
         ui.vertical(|ui| {
-            ui.add_space(16.0);
+            ui.add_space(style::SECTION_SPACING);
             ui.horizontal(|ui| {
                 ui.heading("Linked Sources");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -110,7 +110,7 @@ impl SourcesView {
                 });
             });
             ui.separator();
-            ui.add_space(12.0);
+            ui.add_space(style::SECTION_SPACING);
 
             let sources = multi_store.sources().clone();
             if sources.source.is_empty() {
@@ -134,7 +134,7 @@ impl SourcesView {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for group in &groups {
                     show_group(ui, group, sync_statuses, &mut unlink_path);
-                    ui.add_space(8.0);
+                    ui.add_space(style::ITEM_SPACING);
                 }
 
                 ui.add_space(4.0);
@@ -254,7 +254,7 @@ fn show_source_entry(
     egui::Frame::new()
         .fill(ui.visuals().extreme_bg_color)
         .corner_radius(6.0)
-        .inner_margin(10.0)
+        .inner_margin(14.0)
         .outer_margin(egui::Margin::symmetric(0, 2))
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width() - 16.0);

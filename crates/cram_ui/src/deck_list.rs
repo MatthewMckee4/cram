@@ -47,18 +47,18 @@ impl DeckListView {
         }
 
         ui.vertical(|ui| {
-            ui.add_space(16.0);
+            ui.add_space(style::SECTION_SPACING);
             ui.horizontal(|ui| {
                 ui.heading("Your Decks");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add(style::accent_button("＋ New Deck")).clicked() {
+                    if ui.add(style::accent_button("New Deck")).clicked() {
                         *new_deck_name = String::new();
                         *view = View::NewDeck;
                     }
                 });
             });
             ui.separator();
-            ui.add_space(12.0);
+            ui.add_space(style::SECTION_SPACING);
 
             if decks.is_empty() {
                 ui.vertical_centered(|ui| {
@@ -79,13 +79,13 @@ impl DeckListView {
 
             egui::Grid::new("deck_grid")
                 .num_columns(3)
-                .spacing([16.0, 16.0])
+                .spacing([20.0, 20.0])
                 .show(ui, |ui| {
-                    for (i, (deck, source)) in decks.iter().enumerate() {
+                    for (i, (deck, _source)) in decks.iter().enumerate() {
                         let total = deck.cards().len();
 
                         style::card_frame(ui).show(ui, |ui| {
-                            ui.set_min_width(200.0);
+                            ui.set_min_width(240.0);
                             ui.vertical(|ui| {
                                 ui.heading(deck.name());
                                 if !deck.description().is_empty() {
@@ -95,16 +95,8 @@ impl DeckListView {
                                             .color(ui.visuals().weak_text_color()),
                                     );
                                 }
-                                if let DeckSource::Linked(path) = source {
-                                    let short = shorten_home(path);
-                                    ui.label(
-                                        egui::RichText::new(short)
-                                            .small()
-                                            .color(ui.visuals().weak_text_color()),
-                                    );
-                                }
                                 ui.label(format!("{total} cards"));
-                                ui.add_space(8.0);
+                                ui.add_space(12.0);
                                 ui.horizontal(|ui| {
                                     if ui.add(style::accent_button("Study")).clicked() {
                                         *view = View::Study {
@@ -114,13 +106,7 @@ impl DeckListView {
                                             shuffled_indices: shuffled_indices(total),
                                         };
                                     }
-                                    if ui
-                                        .add(
-                                            egui::Button::new("Edit")
-                                                .corner_radius(style::BUTTON_RADIUS),
-                                        )
-                                        .clicked()
-                                    {
+                                    if ui.add(style::secondary_button("Edit")).clicked() {
                                         *view = View::Editor {
                                             deck_name: deck.name().to_string(),
                                             card_index: None,
@@ -162,13 +148,4 @@ fn shuffled_indices(count: usize) -> Vec<usize> {
         indices.swap(i, j);
     }
     indices
-}
-
-fn shorten_home(path: &std::path::Path) -> String {
-    if let Some(home) = dirs::home_dir()
-        && let Ok(rest) = path.strip_prefix(&home)
-    {
-        return format!("~/{}", rest.display());
-    }
-    path.display().to_string()
 }
