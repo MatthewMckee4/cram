@@ -2,6 +2,7 @@ use cram_core::{Card, Deck};
 use cram_store::Store;
 use egui::{Context, Ui};
 
+use crate::app::PreviewDebounce;
 use crate::highlight::typst_layout_job;
 
 pub struct EditorView;
@@ -17,6 +18,7 @@ impl EditorView {
         store: &Store,
         texture_cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
         selected_cards: &mut std::collections::HashSet<usize>,
+        preview_debounce: &mut PreviewDebounce,
     ) {
         let Some(deck) = decks.iter_mut().find(|d| d.name == deck_name) else {
             ui.label("Deck not found.");
@@ -160,8 +162,9 @@ impl EditorView {
                                         ui.set_max_width(col_w);
                                         ui.label("Preview:");
                                         let front = deck.cards[i].front.clone();
-                                        let key = format!("editor-{i}-{front}");
-                                        match get_or_render(ctx, &key, &front, texture_cache) {
+                                        let source = preview_debounce.render_source(i, &front, ctx);
+                                        let key = format!("editor-{i}-{source}");
+                                        match get_or_render(ctx, &key, &source, texture_cache) {
                                             Ok(tex) => {
                                                 ui.add(egui::Image::new(&tex).max_width(col_w));
                                             }

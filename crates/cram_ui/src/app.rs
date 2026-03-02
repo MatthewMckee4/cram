@@ -56,6 +56,7 @@ pub struct CramApp {
     session_reviewed: u32,
     session_correct: u32,
     undo_state: Option<UndoState>,
+    preview_debounce: PreviewDebounce,
 }
 
 #[derive(Clone)]
@@ -65,6 +66,45 @@ pub struct UndoState {
     pub ease: f64,
     pub reps: u32,
     pub due: chrono::NaiveDate,
+}
+
+#[derive(Default)]
+pub struct PreviewDebounce {
+    prev_frame_text: std::collections::HashMap<usize, String>,
+    render_text: std::collections::HashMap<usize, String>,
+    changed_at: std::collections::HashMap<usize, std::time::Instant>,
+}
+
+impl PreviewDebounce {
+    /// Returns the source text to use for rendering the preview.
+    /// Debounces updates: waits 300ms after the last keystroke before
+    /// updating the render source to the new text.
+    pub fn render_source(&mut self, index: usize, current: &str, ctx: &Context) -> String {
+        let prev_frame = self.prev_frame_text.insert(index, current.to_string());
+        let render = self
+            .render_text
+            .entry(index)
+            .or_insert_with(|| current.to_string());
+
+        if prev_frame.as_deref() != Some(current) {
+            self.changed_at.insert(index, std::time::Instant::now());
+        }
+
+        if current != render.as_str() {
+            if let Some(changed) = self.changed_at.get(&index) {
+                if changed.elapsed() >= std::time::Duration::from_millis(300) {
+                    *render = current.to_string();
+                    self.changed_at.remove(&index);
+                } else {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(50));
+                }
+            } else {
+                *render = current.to_string();
+            }
+        }
+
+        render.clone()
+    }
 }
 
 impl CramApp {
@@ -86,6 +126,7 @@ impl CramApp {
             session_reviewed: 0,
             session_correct: 0,
             undo_state: None,
+            preview_debounce: PreviewDebounce::default(),
         };
         // Seed sample deck if nothing exists
         if app.decks.is_empty() {
@@ -391,6 +432,7 @@ impl eframe::App for CramApp {
                         &self.store,
                         &mut self.texture_cache,
                         &mut self.selected_cards,
+                        &mut self.preview_debounce,
                     );
                     self.view = View::Editor {
                         deck_name,
