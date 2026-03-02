@@ -1050,11 +1050,9 @@ dependencies = [
 name = "cram"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "cram_ui",
  "eframe",
  "egui",
- "tracing",
  "tracing-subscriber",
 ]
 
@@ -1062,10 +1060,8 @@ dependencies = [
 name = "cram_core"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "chrono",
  "serde",
- "thiserror 2.0.18",
  "uuid",
 ]
 
@@ -1084,12 +1080,10 @@ dependencies = [
 name = "cram_render"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "chrono",
  "criterion",
  "thiserror 2.0.18",
  "typst",
- "typst-assets",
  "typst-kit",
  "typst-render",
 ]
@@ -1101,7 +1095,6 @@ dependencies = [
  "anyhow",
  "cram_core",
  "dirs 5.0.1",
- "serde",
  "tempfile",
  "thiserror 2.0.18",
  "toml",
@@ -1111,7 +1104,6 @@ dependencies = [
 name = "cram_ui"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "chrono",
  "cram_core",
  "cram_render",
