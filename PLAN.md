@@ -29,7 +29,7 @@ Mark items ✅ when done. Add new items freely.
 - [x] Custom Typst preamble per deck (shared imports, macros)
 
 ## Phase 4 — Quality
-- [ ] Integration tests in it/ directory
+- [x] Integration tests in it/ directory
 - [ ] Benchmark: render throughput (typst compile + rasterise)
 - [ ] CI workflow (.github/workflows/ci.yml)
 - [ ] Docs: fill out all zensical pages with real content
