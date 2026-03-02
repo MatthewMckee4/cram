@@ -1,0 +1,38 @@
+[project]
+site_name = "Cram"
+site_url = "https://MatthewMckee4.github.io/cram"
+site_description = "A pure-Rust flashcard app with Typst-powered card rendering"
+site_author = "Matthew McKee"
+repo_url = "https://github.com/MatthewMckee4/cram"
+repo_name = "MatthewMckee4/cram"
+
+docs_dir = "docs"
+site_dir = "site"
+dev_addr = "localhost:3000"
+
+nav = [
+    { "Home" = "index.md" },
+    { "Installation" = "installation.md" },
+    { "Getting Started" = "getting-started.md" },
+    { "Writing Cards" = "writing-cards.md" },
+    { "Spaced Repetition" = "spaced-repetition.md" },
+    { "Configuration" = "configuration.md" },
+]
+
+[project.theme]
+language = "en"
+features = ["navigation.instant", "search.highlight"]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+primary = "custom"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+primary = "custom"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"

@@ -1,6 +1,34 @@
-[package]
-name = "cram"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["crates/*"]
+resolver = "2"
 
-[dependencies]
+[workspace.package]
+edition = "2024"
+rust-version = "1.80"
+homepage = "https://github.com/MatthewMckee4/cram"
+repository = "https://github.com/MatthewMckee4/cram"
+authors = ["Matthew McKee <matthewmckee04@yahoo.co.uk>"]
+license = "MIT"
+
+[workspace.dependencies]
+cram_core    = { path = "crates/cram_core" }
+cram_store   = { path = "crates/cram_store" }
+cram_render  = { path = "crates/cram_render" }
+cram_ui      = { path = "crates/cram_ui" }
+
+anyhow        = "1"
+chrono        = { version = "0.4", features = ["serde"] }
+dirs          = "5"
+eframe        = { version = "0.31", features = ["default"] }
+egui          = "0.31"
+egui_extras   = { version = "0.31", features = ["image"] }
+image         = { version = "0.25", features = ["png"] }
+serde         = { version = "1", features = ["derive"] }
+serde_json    = "1"
+thiserror     = "2"
+toml          = "0.8"
+tracing       = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+typst         = "0.13"
+typst-render  = "0.13"
+uuid          = { version = "1", features = ["v4"] }

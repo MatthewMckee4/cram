@@ -1,0 +1,17 @@
+[package]
+name = "cram"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "cram"
+path = "src/main.rs"
+
+[dependencies]
+cram_ui.workspace = true
+anyhow.workspace = true
+eframe.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
