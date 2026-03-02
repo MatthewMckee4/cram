@@ -3,7 +3,7 @@ use cram_store::Store;
 use eframe::CreationContext;
 use egui::Context;
 
-use crate::{deck_list::DeckListView, editor::EditorView, study::StudyView};
+use crate::{deck_list::DeckListView, editor::EditorView, stats::StatsView, study::StudyView};
 
 #[derive(Default, Clone)]
 pub enum View {
@@ -19,6 +19,7 @@ pub enum View {
         card_index: Option<usize>,
     },
     NewDeck,
+    Stats,
 }
 
 pub struct CramApp {
@@ -89,6 +90,9 @@ impl eframe::App for CramApp {
                 if ui.button("Decks").clicked() {
                     self.view = View::DeckList;
                 }
+                if ui.button("Stats").clicked() {
+                    self.view = View::Stats;
+                }
             });
         });
 
@@ -151,6 +155,9 @@ impl eframe::App for CramApp {
                         deck_name,
                         card_index,
                     };
+                }
+                View::Stats => {
+                    StatsView::show(ui, &self.decks);
                 }
                 View::NewDeck => {
                     ui.vertical_centered(|ui| {
