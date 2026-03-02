@@ -30,8 +30,9 @@ fn decks_dir_prints_path() {
         .success();
 
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let path = std::path::Path::new(stdout.trim());
     assert!(
-        stdout.trim().ends_with("cram/decks"),
+        path.ends_with("cram/decks"),
         "expected path ending with cram/decks, got: {stdout}"
     );
 }
