@@ -3,6 +3,7 @@ use cram_store::Store;
 use eframe::CreationContext;
 use egui::Context;
 
+use crate::style;
 use crate::{
     deck_list::DeckListView, editor::EditorView, search::SearchView, stats::StatsView,
     study::StudyView,
@@ -345,40 +346,66 @@ impl CramApp {
 
 impl eframe::App for CramApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("topbar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("📚 Cram");
-                ui.separator();
-                if ui.button("Decks").clicked() {
-                    self.view = View::DeckList;
-                }
-                if ui.button("Stats").clicked() {
-                    self.view = View::Stats;
-                }
-                if ui.button("Search").clicked() {
-                    self.view = View::Search;
-                }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let label = if self.dark_mode { "Light" } else { "Dark" };
-                    if ui.button(label).clicked() {
-                        self.dark_mode = !self.dark_mode;
-                        if self.dark_mode {
-                            ctx.set_visuals(egui::Visuals::dark());
+        egui::TopBottomPanel::top("topbar")
+            .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(8, 6)))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.heading("📚 Cram");
+                    ui.separator();
+                    let nav = [
+                        ("Decks", View::DeckList),
+                        ("Stats", View::Stats),
+                        ("Search", View::Search),
+                    ];
+                    for (label, target) in nav {
+                        let active =
+                            std::mem::discriminant(&self.view) == std::mem::discriminant(&target);
+                        let btn = if active {
+                            egui::Button::new(
+                                egui::RichText::new(label).color(egui::Color32::WHITE),
+                            )
+                            .fill(style::ACCENT)
+                            .corner_radius(style::BUTTON_RADIUS)
                         } else {
-                            ctx.set_visuals(egui::Visuals::light());
+                            egui::Button::new(label).corner_radius(style::BUTTON_RADIUS)
+                        };
+                        if ui.add(btn).clicked() {
+                            self.view = target;
                         }
                     }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let icon = if self.dark_mode { "☀" } else { "🌙" };
+                        if ui.button(icon).clicked() {
+                            self.dark_mode = !self.dark_mode;
+                            self.texture_cache.clear();
+                            if self.dark_mode {
+                                ctx.set_visuals(egui::Visuals::dark());
+                            } else {
+                                ctx.set_visuals(egui::Visuals::light());
+                            }
+                        }
+                    });
                 });
             });
-        });
 
         if let Some(err) = &self.error_message.clone() {
-            egui::TopBottomPanel::bottom("errors").show(ctx, |ui| {
-                ui.colored_label(egui::Color32::RED, err);
-                if ui.button("✕").clicked() {
-                    self.error_message = None;
-                }
-            });
+            let bg = if self.dark_mode {
+                egui::Color32::from_rgb(80, 20, 20)
+            } else {
+                egui::Color32::from_rgb(254, 226, 226)
+            };
+            egui::TopBottomPanel::bottom("errors")
+                .frame(egui::Frame::new().fill(bg).inner_margin(8.0))
+                .show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.colored_label(egui::Color32::RED, err);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("✕").clicked() {
+                                self.error_message = None;
+                            }
+                        });
+                    });
+                });
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -473,48 +500,63 @@ impl eframe::App for CramApp {
                 } => {
                     ui.vertical_centered(|ui| {
                         ui.add_space(60.0);
-                        ui.heading("Session Complete");
-                        ui.add_space(16.0);
-                        ui.label(format!("Deck: {deck_name}"));
-                        ui.label(format!("Cards reviewed: {cards_reviewed}"));
-                        let retention = if cards_reviewed > 0 {
-                            correct as f64 / cards_reviewed as f64 * 100.0
-                        } else {
-                            0.0
-                        };
-                        ui.label(format!("Retention: {retention:.0}%"));
-                        let mins = elapsed_secs / 60;
-                        let secs = elapsed_secs % 60;
-                        ui.label(format!("Time: {mins}m {secs}s"));
-                        ui.add_space(16.0);
-                        if ui.button("Back to Decks").clicked() {
-                            self.view = View::DeckList;
-                        }
+                        style::card_frame(ui).show(ui, |ui| {
+                            ui.set_max_width(400.0);
+                            ui.vertical_centered(|ui| {
+                                ui.heading("Session Complete");
+                                ui.add_space(16.0);
+                                ui.label(format!("Deck: {deck_name}"));
+                                ui.label(format!("Cards reviewed: {cards_reviewed}"));
+                                let retention = if cards_reviewed > 0 {
+                                    correct as f64 / cards_reviewed as f64 * 100.0
+                                } else {
+                                    0.0
+                                };
+                                ui.label(format!("Retention: {retention:.0}%"));
+                                let mins = elapsed_secs / 60;
+                                let secs = elapsed_secs % 60;
+                                ui.label(format!("Time: {mins}m {secs}s"));
+                                ui.add_space(16.0);
+                                if ui.add(style::accent_button("Back to Decks")).clicked() {
+                                    self.view = View::DeckList;
+                                }
+                            });
+                        });
                     });
                 }
                 View::NewDeck => {
                     ui.vertical_centered(|ui| {
                         ui.add_space(80.0);
-                        ui.heading("New Deck");
-                        ui.add_space(20.0);
-                        ui.horizontal(|ui| {
-                            ui.label("Name:");
-                            ui.text_edit_singleline(&mut self.new_deck_name);
+                        style::card_frame(ui).show(ui, |ui| {
+                            ui.set_max_width(400.0);
+                            ui.vertical_centered(|ui| {
+                                ui.heading("New Deck");
+                                ui.add_space(20.0);
+                                ui.horizontal(|ui| {
+                                    ui.label("Name:");
+                                    ui.text_edit_singleline(&mut self.new_deck_name);
+                                });
+                                ui.add_space(10.0);
+                                ui.horizontal(|ui| {
+                                    if ui.add(style::accent_button("Create")).clicked()
+                                        && !self.new_deck_name.is_empty()
+                                    {
+                                        let deck = Deck::new(self.new_deck_name.trim(), "");
+                                        if let Err(e) = self.store.save_deck(&deck) {
+                                            self.error_message =
+                                                Some(format!("Failed to save: {e}"));
+                                        } else {
+                                            self.decks.push(deck);
+                                            self.view = View::DeckList;
+                                            self.new_deck_name.clear();
+                                        }
+                                    }
+                                    if ui.button("Cancel").clicked() {
+                                        self.view = View::DeckList;
+                                    }
+                                });
+                            });
                         });
-                        ui.add_space(10.0);
-                        if ui.button("Create").clicked() && !self.new_deck_name.is_empty() {
-                            let deck = Deck::new(self.new_deck_name.trim(), "");
-                            if let Err(e) = self.store.save_deck(&deck) {
-                                self.error_message = Some(format!("Failed to save: {e}"));
-                            } else {
-                                self.decks.push(deck);
-                                self.view = View::DeckList;
-                                self.new_deck_name.clear();
-                            }
-                        }
-                        if ui.button("Cancel").clicked() {
-                            self.view = View::DeckList;
-                        }
                     });
                 }
             }
@@ -564,7 +606,8 @@ impl CramApp {
 
                 egui::ScrollArea::both().show(ui, |ui| {
                     let key = format!("fullscreen-{source}");
-                    match get_or_render(ctx, &key, &source, &mut self.texture_cache) {
+                    let dark_mode = ui.visuals().dark_mode;
+                    match get_or_render(ctx, &key, &source, &mut self.texture_cache, dark_mode) {
                         Ok(tex) => {
                             ui.add(egui::Image::new(&tex).max_width(ui.available_width()));
                         }
@@ -582,11 +625,12 @@ fn get_or_render(
     key: &str,
     source: &str,
     cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
+    dark_mode: bool,
 ) -> Result<egui::TextureHandle, String> {
     if let Some(h) = cache.get(key) {
         return Ok(h.clone());
     }
-    let png = cram_render::render(source).map_err(|e| e.to_string())?;
+    let png = cram_render::render(source, dark_mode).map_err(|e| e.to_string())?;
     let img = image::load_from_memory(&png).map_err(|e| e.to_string())?;
     let rgba = img.to_rgba8();
     let (w, h) = rgba.dimensions();

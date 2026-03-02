@@ -3,6 +3,7 @@ use cram_store::Store;
 use egui::{Context, Ui};
 
 use crate::app::{UndoState, View};
+use crate::style;
 
 pub struct StudyView;
 
@@ -85,34 +86,32 @@ impl StudyView {
                 format!("{}\n{card_text}", deck.preamble)
             };
 
-            let render_result = get_or_render(ctx, &card_source, &card_source, texture_cache);
+            let dark_mode = ui.visuals().dark_mode;
+            let render_result =
+                get_or_render(ctx, &card_source, &card_source, texture_cache, dark_mode);
 
-            egui::Frame::new()
-                .fill(ui.visuals().window_fill)
-                .corner_radius(12.0)
-                .inner_margin(24.0)
-                .stroke(ui.visuals().window_stroke)
-                .show(ui, |ui| {
-                    ui.set_min_size(egui::vec2(ui.available_width(), 320.0));
-                    ui.vertical_centered(|ui| match &render_result {
-                        Ok(tex) => {
-                            let max_w = ui.available_width().min(600.0);
-                            ui.add(egui::Image::new(tex).max_width(max_w));
-                        }
-                        Err(err) => {
-                            ui.colored_label(egui::Color32::RED, format!("Render error: {err}"));
-                            ui.label(&card_source);
-                        }
-                    });
+            style::card_frame(ui).inner_margin(24.0).show(ui, |ui| {
+                ui.set_min_size(egui::vec2(ui.available_width(), 320.0));
+                ui.vertical_centered(|ui| match &render_result {
+                    Ok(tex) => {
+                        let max_w = ui.available_width().min(600.0);
+                        ui.add(egui::Image::new(tex).max_width(max_w));
+                    }
+                    Err(err) => {
+                        ui.colored_label(egui::Color32::RED, format!("Render error: {err}"));
+                        ui.label(&card_source);
+                    }
                 });
+            });
 
             ui.add_space(16.0);
 
             if !*revealed {
                 ui.vertical_centered(|ui| {
-                    if ui.button("Show Answer  [Space]").clicked()
-                        || ui.input(|i| i.key_pressed(egui::Key::Space))
-                    {
+                    let btn = style::accent_button("Show Answer  [Space]")
+                        .min_size(egui::vec2(200.0, 40.0))
+                        .corner_radius(8.0);
+                    if ui.add(btn).clicked() || ui.input(|i| i.key_pressed(egui::Key::Space)) {
                         *revealed = true;
                     }
                 });
@@ -146,7 +145,11 @@ impl StudyView {
                     for (rating, color, key) in ratings {
                         let text = format!("{} [{}]", rating.label(), key);
                         let label = egui::RichText::new(text).color(egui::Color32::WHITE);
-                        if ui.add(egui::Button::new(label).fill(color)).clicked() {
+                        let btn = egui::Button::new(label)
+                            .fill(color)
+                            .corner_radius(style::BUTTON_RADIUS)
+                            .min_size(egui::vec2(80.0, 32.0));
+                        if ui.add(btn).clicked() {
                             selected_rating = Some(rating);
                         }
                     }
@@ -212,11 +215,12 @@ fn get_or_render(
     key: &str,
     source: &str,
     cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
+    dark_mode: bool,
 ) -> Result<egui::TextureHandle, String> {
     if let Some(h) = cache.get(key) {
         return Ok(h.clone());
     }
-    let png = cram_render::render(source).map_err(|e| e.to_string())?;
+    let png = cram_render::render(source, dark_mode).map_err(|e| e.to_string())?;
     let img = image::load_from_memory(&png).map_err(|e| e.to_string())?;
     let rgba = img.to_rgba8();
     let (w, h) = rgba.dimensions();

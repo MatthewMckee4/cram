@@ -1,6 +1,8 @@
 use cram_core::Deck;
 use egui::Ui;
 
+use crate::style;
+
 pub struct StatsView;
 
 impl StatsView {
@@ -30,24 +32,25 @@ impl StatsView {
             ui.separator();
             ui.add_space(16.0);
 
-            egui::Grid::new("stats_grid")
-                .num_columns(2)
-                .spacing([24.0, 12.0])
-                .show(ui, |ui| {
-                    stat_row(ui, "Total cards", &total_cards.to_string());
-                    stat_row(ui, "Due today", &due_today.to_string());
-                    stat_row(ui, "Cards reviewed", &reviewed.to_string());
-                    stat_row(ui, "Retention rate", &format!("{retention_pct:.0}%"));
-                    stat_row(ui, "Study streak", &format!("{streak} day(s)"));
-                });
+            ui.horizontal_wrapped(|ui| {
+                stat_card(ui, "Total cards", &total_cards.to_string());
+                stat_card(ui, "Due today", &due_today.to_string());
+                stat_card(ui, "Reviewed", &reviewed.to_string());
+                stat_card(ui, "Retention", &format!("{retention_pct:.0}%"));
+                stat_card(ui, "Streak", &format!("{streak} day(s)"));
+            });
         });
     }
 }
 
-fn stat_row(ui: &mut egui::Ui, label: &str, value: &str) {
-    ui.label(label);
-    ui.heading(value);
-    ui.end_row();
+fn stat_card(ui: &mut egui::Ui, label: &str, value: &str) {
+    style::card_frame(ui).show(ui, |ui| {
+        ui.set_min_width(100.0);
+        ui.vertical_centered(|ui| {
+            ui.label(label);
+            ui.heading(value);
+        });
+    });
 }
 
 /// Compute streak as the number of consecutive days (ending today or yesterday)
