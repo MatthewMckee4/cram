@@ -6,7 +6,7 @@ use crate::style;
 pub struct StatsView;
 
 impl StatsView {
-    pub fn show(ui: &mut Ui, decks: &[Deck]) {
+    pub fn show(ui: &mut Ui, decks: &[&Deck]) {
         let total_decks = decks.len();
         let total_cards: usize = decks.iter().map(|d| d.cards().len()).sum();
 

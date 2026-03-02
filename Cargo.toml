@@ -30,6 +30,7 @@ image = { version = "0.25", features = ["png"] }
 insta = "1"
 owo-colors = "4"
 regex = "1"
+rfd = "0.15"
 serde = { version = "1", features = ["derive"] }
 tempfile = "3"
 thiserror = "2"

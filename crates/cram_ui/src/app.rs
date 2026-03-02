@@ -1,8 +1,11 @@
+use std::path::PathBuf;
+
 use cram_core::Deck;
-use cram_store::Store;
+use cram_store::{DeckSource, MultiStore, Store};
 use eframe::CreationContext;
 use egui::Context;
 
+use crate::sources::{SourceStatus, SourcesView};
 use crate::style;
 use crate::{
     deck_list::DeckListView, editor::EditorView, search::SearchView, stats::StatsView,
@@ -26,6 +29,7 @@ pub enum View {
     NewDeck,
     Stats,
     Search,
+    Sources,
     SessionSummary {
         deck_name: String,
         cards_reviewed: u32,
@@ -34,8 +38,8 @@ pub enum View {
 }
 
 pub struct CramApp {
-    store: Store,
-    decks: Vec<Deck>,
+    multi_store: MultiStore,
+    decks: Vec<(Deck, DeckSource)>,
     view: View,
     new_deck_name: String,
     texture_cache: std::collections::HashMap<String, egui::TextureHandle>,
@@ -47,6 +51,7 @@ pub struct CramApp {
     session_reviewed: u32,
     preview_debounce: PreviewDebounce,
     fullscreen_preview: Option<String>,
+    sync_statuses: Vec<SourceStatus>,
 }
 
 #[derive(Default)]
@@ -88,12 +93,32 @@ impl PreviewDebounce {
     }
 }
 
+fn build_multi_store() -> MultiStore {
+    let store = Store::from_env_or_default().unwrap_or_default();
+    let config_dir = config_dir_for_store(&store);
+    MultiStore::new(store, config_dir).unwrap_or_else(|e| {
+        tracing::warn!("failed to build multi store: {e}, falling back to primary only");
+        let fallback = Store::from_env_or_default().unwrap_or_default();
+        let fallback_dir = config_dir_for_store(&fallback);
+        // If MultiStore::new fails again we have bigger problems, but at least try
+        MultiStore::new(fallback, fallback_dir).expect("fallback multi store")
+    })
+}
+
+fn config_dir_for_store(store: &Store) -> PathBuf {
+    store
+        .data_dir()
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| store.data_dir().to_path_buf())
+}
+
 impl CramApp {
     pub fn new(_cc: &CreationContext) -> Self {
-        let store = Store::from_env_or_default().unwrap_or_default();
-        let decks = store.load_all_decks().unwrap_or_default();
+        let multi_store = build_multi_store();
+        let decks = multi_store.load_all_decks().unwrap_or_default();
         let mut app = Self {
-            store,
+            multi_store,
             decks,
             view: View::DeckList,
             new_deck_name: String::new(),
@@ -106,6 +131,7 @@ impl CramApp {
             session_reviewed: 0,
             preview_debounce: PreviewDebounce::default(),
             fullscreen_preview: None,
+            sync_statuses: Vec::new(),
         };
         if app.decks.is_empty() {
             app.seed_sample_deck();
@@ -136,11 +162,15 @@ impl CramApp {
             "= Closures\nWhat makes Rust closures different from regular functions?",
             "Closures *capture* their environment. They implement `Fn`, `FnMut`, or `FnOnce` depending on how they use captured variables.",
         ));
-        if let Err(e) = self.store.save_deck(&deck) {
+        if let Err(e) = self.multi_store.save_deck(&deck, &DeckSource::Local) {
             tracing::warn!("failed to save sample deck: {e}");
         } else {
-            self.decks.push(deck);
+            self.decks.push((deck, DeckSource::Local));
         }
+    }
+
+    fn reload_decks(&mut self) {
+        self.decks = self.multi_store.load_all_decks().unwrap_or_default();
     }
 }
 
@@ -156,6 +186,7 @@ impl eframe::App for CramApp {
                         ("Decks", View::DeckList),
                         ("Stats", View::Stats),
                         ("Search", View::Search),
+                        ("Sources", View::Sources),
                     ];
                     for (label, target) in nav {
                         let active =
@@ -212,13 +243,9 @@ impl eframe::App for CramApp {
             let view = self.view.clone();
             match view {
                 View::DeckList => {
-                    DeckListView::show(
-                        ui,
-                        &self.decks,
-                        &mut self.view,
-                        &mut self.new_deck_name,
-                        &self.store,
-                    );
+                    let deck_refs: Vec<(&Deck, &DeckSource)> =
+                        self.decks.iter().map(|(d, s)| (d, s)).collect();
+                    DeckListView::show(ui, &deck_refs, &mut self.view, &mut self.new_deck_name);
                 }
                 View::Study {
                     deck_name,
@@ -226,10 +253,11 @@ impl eframe::App for CramApp {
                     mut revealed,
                     shuffled_indices,
                 } => {
+                    let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
                     StudyView::show(
                         ui,
                         ctx,
-                        &self.decks,
+                        &deck_only,
                         &deck_name,
                         &mut card_index,
                         &mut revealed,
@@ -252,28 +280,58 @@ impl eframe::App for CramApp {
                     deck_name,
                     card_index,
                 } => {
+                    let source = self
+                        .decks
+                        .iter()
+                        .find(|(d, _)| d.name() == deck_name)
+                        .map(|(_, s)| s.clone())
+                        .unwrap_or(DeckSource::Local);
+                    let mut deck_only: Vec<Deck> =
+                        self.decks.iter().map(|(d, _)| d.clone()).collect();
                     EditorView::show(
                         ui,
                         ctx,
-                        &mut self.decks,
+                        &mut deck_only,
                         &deck_name,
                         card_index,
-                        &self.store,
+                        &self.multi_store,
+                        &source,
                         &mut self.texture_cache,
                         &mut self.selected_cards,
                         &mut self.preview_debounce,
                         &mut self.fullscreen_preview,
                     );
+                    // Write modified decks back
+                    for (i, (deck, _src)) in self.decks.iter_mut().enumerate() {
+                        if i < deck_only.len() {
+                            *deck = deck_only[i].clone();
+                        }
+                    }
                     self.view = View::Editor {
                         deck_name,
                         card_index,
                     };
                 }
                 View::Stats => {
-                    StatsView::show(ui, &self.decks);
+                    let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
+                    StatsView::show(ui, &deck_only);
                 }
                 View::Search => {
-                    SearchView::show(ui, &self.decks, &mut self.search_query);
+                    let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
+                    SearchView::show(ui, &deck_only, &mut self.search_query);
+                }
+                View::Sources => {
+                    let prev_count = self.multi_store.sources().source.len();
+                    SourcesView::show(
+                        ui,
+                        &mut self.multi_store,
+                        &mut self.sync_statuses,
+                        &mut self.error_message,
+                    );
+                    let new_count = self.multi_store.sources().source.len();
+                    if prev_count != new_count {
+                        self.reload_decks();
+                    }
                 }
                 View::SessionSummary {
                     deck_name,
@@ -318,11 +376,13 @@ impl eframe::App for CramApp {
                                         && !self.new_deck_name.is_empty()
                                     {
                                         let deck = Deck::new(self.new_deck_name.trim(), "");
-                                        if let Err(e) = self.store.save_deck(&deck) {
+                                        if let Err(e) =
+                                            self.multi_store.save_deck(&deck, &DeckSource::Local)
+                                        {
                                             self.error_message =
                                                 Some(format!("Failed to save: {e}"));
                                         } else {
-                                            self.decks.push(deck);
+                                            self.decks.push((deck, DeckSource::Local));
                                             self.view = View::DeckList;
                                             self.new_deck_name.clear();
                                         }

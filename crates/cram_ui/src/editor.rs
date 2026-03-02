@@ -1,5 +1,5 @@
 use cram_core::{Card, Deck};
-use cram_store::Store;
+use cram_store::{DeckSource, MultiStore};
 use egui::{Context, Ui};
 
 use crate::app::PreviewDebounce;
@@ -16,7 +16,8 @@ impl EditorView {
         decks: &mut [Deck],
         deck_name: &str,
         card_index: Option<usize>,
-        store: &Store,
+        multi_store: &MultiStore,
+        deck_source: &DeckSource,
         texture_cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
         selected_cards: &mut std::collections::HashSet<usize>,
         preview_debounce: &mut PreviewDebounce,
@@ -33,7 +34,7 @@ impl EditorView {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.add(style::accent_button("+ Add Card")).clicked() {
                         deck.cards_mut().push(Card::new("Front", "Back"));
-                        let _ = store.save_deck(deck);
+                        let _ = multi_store.save_deck(deck, deck_source);
                     }
                 });
             });
@@ -71,7 +72,7 @@ impl EditorView {
                         }
                     }
                     selected_cards.clear();
-                    let _ = store.save_deck(deck);
+                    let _ = multi_store.save_deck(deck, deck_source);
                 }
             });
 
@@ -98,7 +99,7 @@ impl EditorView {
                         )
                         .changed()
                     {
-                        let _ = store.save_deck(deck);
+                        let _ = multi_store.save_deck(deck, deck_source);
                         texture_cache.clear();
                     }
                 });
@@ -245,11 +246,11 @@ impl EditorView {
                 }
 
                 if save_now {
-                    let _ = store.save_deck(deck);
+                    let _ = multi_store.save_deck(deck, deck_source);
                 }
                 if let Some(idx) = to_delete {
                     deck.cards_mut().remove(idx);
-                    let _ = store.save_deck(deck);
+                    let _ = multi_store.save_deck(deck, deck_source);
                 }
             });
         });

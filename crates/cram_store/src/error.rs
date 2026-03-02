@@ -4,6 +4,8 @@ use thiserror::Error;
 pub enum StoreError {
     #[error("deck not found: {0}")]
     NotFound(String),
+    #[error("directory not found: {0}")]
+    DirNotFound(String),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("parse error: {0}")]

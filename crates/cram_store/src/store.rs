@@ -37,6 +37,15 @@ impl Store {
         Ok(Self { data_dir })
     }
 
+    /// Open a Store at an existing directory without creating it.
+    /// Returns `StoreError::DirNotFound` if the directory doesn't exist.
+    pub fn open(data_dir: PathBuf) -> Result<Self> {
+        if !data_dir.is_dir() {
+            return Err(StoreError::DirNotFound(data_dir.display().to_string()).into());
+        }
+        Ok(Self { data_dir })
+    }
+
     fn deck_path(&self, name: &str) -> PathBuf {
         self.data_dir.join(format!("{name}.toml"))
     }

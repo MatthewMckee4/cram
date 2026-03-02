@@ -58,6 +58,11 @@ fn run(cli: Cli, settings: &GlobalSettings) -> anyhow::Result<ExitStatus> {
         Some(Command::Decks { command }) => match command {
             DecksCommand::List => commands::decks::list(settings)?,
             DecksCommand::Dir => commands::decks::dir(settings)?,
+            DecksCommand::New { path } => commands::decks::new(path)?,
+            DecksCommand::Link { path } => commands::decks::link(settings, path)?,
+            DecksCommand::Unlink { path } => commands::decks::unlink(settings, path)?,
+            DecksCommand::Sources => commands::decks::sources(settings)?,
+            DecksCommand::Sync => commands::sync::sync(settings)?,
         },
         Some(Command::Self_ { command }) => match command {
             SelfCommand::Update { token, prerelease } => {
