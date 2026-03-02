@@ -19,6 +19,10 @@ impl Store {
         Ok(Self { data_dir })
     }
 
+    pub fn data_dir(&self) -> &std::path::Path {
+        &self.data_dir
+    }
+
     /// Create a Store pointing at a specific directory (useful for tests).
     pub fn with_dir(data_dir: PathBuf) -> Result<Self> {
         std::fs::create_dir_all(&data_dir)?;
@@ -159,6 +163,12 @@ mod tests {
         store.save_deck(&Deck::new("three", "")).unwrap();
         let all = store.load_all_decks().unwrap();
         assert_eq!(all.len(), 3);
+    }
+
+    #[test]
+    fn data_dir_returns_store_path() {
+        let (store, dir) = temp_store();
+        assert_eq!(store.data_dir(), dir.path());
     }
 
     #[test]

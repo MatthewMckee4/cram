@@ -1,7 +1,7 @@
 mod commands;
 
 use clap::Parser;
-use cram_cli::{Cli, Command, SelfCommand};
+use cram_cli::{Cli, Command, DecksCommand, SelfCommand};
 
 fn main() {
     tracing_subscriber::fmt()
@@ -11,8 +11,12 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Command::List) => {
-            if let Err(e) = commands::list_decks() {
+        Some(Command::Decks { command }) => {
+            let result = match command {
+                DecksCommand::List => commands::decks::list(),
+                DecksCommand::Dir => commands::decks::dir(),
+            };
+            if let Err(e) = result {
                 eprintln!("cram: {e}");
                 std::process::exit(1);
             }

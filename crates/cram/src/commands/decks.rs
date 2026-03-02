@@ -1,4 +1,4 @@
-pub fn list_decks() -> anyhow::Result<()> {
+pub fn list() -> anyhow::Result<()> {
     let store = cram_store::Store::new()?;
     let decks = store.load_all_decks()?;
     if decks.is_empty() {
@@ -8,5 +8,11 @@ pub fn list_decks() -> anyhow::Result<()> {
     for deck in &decks {
         println!("{} ({} cards)", deck.name(), deck.cards().len());
     }
+    Ok(())
+}
+
+pub fn dir() -> anyhow::Result<()> {
+    let store = cram_store::Store::new()?;
+    println!("{}", store.data_dir().display());
     Ok(())
 }

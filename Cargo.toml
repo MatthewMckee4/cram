@@ -18,6 +18,7 @@ cram_store = { path = "crates/cram_store" }
 cram_ui = { path = "crates/cram_ui" }
 
 anyhow = "1"
+assert_cmd = "2"
 axoupdater = { version = "0.10", features = ["blocking"] }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
@@ -25,6 +26,7 @@ dirs = "6"
 eframe = { version = "0.33", features = ["default"] }
 egui = "0.33"
 image = { version = "0.25", features = ["png"] }
+insta = "1"
 serde = { version = "1", features = ["derive"] }
 tempfile = "3"
 thiserror = "2"

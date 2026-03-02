@@ -13,14 +13,25 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// List all decks
-    List,
+    /// Manage decks
+    Decks {
+        #[command(subcommand)]
+        command: DecksCommand,
+    },
     /// Manage the cram installation
     #[command(name = "self")]
     Self_ {
         #[command(subcommand)]
         command: SelfCommand,
     },
+}
+
+#[derive(Subcommand)]
+pub enum DecksCommand {
+    /// List all decks
+    List,
+    /// Print the decks directory path
+    Dir,
 }
 
 #[derive(Subcommand)]
