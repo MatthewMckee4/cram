@@ -55,6 +55,16 @@ pub struct CramApp {
     session_start: Option<std::time::Instant>,
     session_reviewed: u32,
     session_correct: u32,
+    undo_state: Option<UndoState>,
+}
+
+#[derive(Clone)]
+pub struct UndoState {
+    pub card_index: usize,
+    pub interval: f64,
+    pub ease: f64,
+    pub reps: u32,
+    pub due: chrono::NaiveDate,
 }
 
 impl CramApp {
@@ -75,6 +85,7 @@ impl CramApp {
             session_start: None,
             session_reviewed: 0,
             session_correct: 0,
+            undo_state: None,
         };
         // Seed sample deck if nothing exists
         if app.decks.is_empty() {
@@ -357,6 +368,7 @@ impl eframe::App for CramApp {
                         &mut self.session_reviewed,
                         &mut self.session_correct,
                         &mut self.session_start,
+                        &mut self.undo_state,
                     );
                     if matches!(self.view, View::Study { .. }) {
                         self.view = View::Study {

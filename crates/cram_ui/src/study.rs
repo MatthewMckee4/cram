@@ -2,7 +2,7 @@ use cram_core::{Deck, Rating, review_card};
 use cram_store::Store;
 use egui::{Context, Ui};
 
-use crate::app::View;
+use crate::app::{UndoState, View};
 
 pub struct StudyView;
 
@@ -21,6 +21,7 @@ impl StudyView {
         session_reviewed: &mut u32,
         session_correct: &mut u32,
         session_start: &mut Option<std::time::Instant>,
+        undo_state: &mut Option<UndoState>,
     ) {
         if session_start.is_none() {
             *session_start = Some(std::time::Instant::now());
@@ -144,7 +145,31 @@ impl StudyView {
                     }
                 });
 
+                if undo_state.is_some()
+                    && ui.button("Undo Last Rating").clicked()
+                    && let Some(state) = undo_state.take()
+                    && state.card_index < deck.cards.len()
+                {
+                    let card = &mut deck.cards[state.card_index];
+                    card.interval = state.interval;
+                    card.ease = state.ease;
+                    card.reps = state.reps;
+                    card.due = state.due;
+                    let _ = store.save_deck(deck);
+                    if *session_reviewed > 0 {
+                        *session_reviewed -= 1;
+                    }
+                }
+
                 if let Some(rating) = selected_rating {
+                    let card = &deck.cards[card_pos];
+                    *undo_state = Some(UndoState {
+                        card_index: card_pos,
+                        interval: card.interval,
+                        ease: card.ease,
+                        reps: card.reps,
+                        due: card.due,
+                    });
                     review_card(&mut deck.cards[card_pos], rating);
                     if let Err(e) = store.save_deck(deck) {
                         tracing::warn!("save failed: {e}");
