@@ -1,0 +1,9 @@
+[package]
+name = "cram_cli"
+version = "0.0.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+clap.workspace = true

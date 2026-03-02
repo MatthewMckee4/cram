@@ -1,42 +1,7 @@
 mod commands;
 
-use clap::{Parser, Subcommand};
-
-#[derive(Parser)]
-#[command(
-    name = "cram",
-    version,
-    about = "A flashcard app with Typst-powered card rendering"
-)]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Command>,
-}
-
-#[derive(Subcommand)]
-enum Command {
-    /// List all decks
-    List,
-    /// Manage the cram installation
-    #[command(name = "self")]
-    Self_ {
-        #[command(subcommand)]
-        command: SelfCommand,
-    },
-}
-
-#[derive(Subcommand)]
-enum SelfCommand {
-    /// Update cram to the latest version
-    Update {
-        /// GitHub API token for authentication (avoids rate limits)
-        #[arg(long)]
-        token: Option<String>,
-        /// Include pre-release versions (e.g. alpha, beta, rc)
-        #[arg(long)]
-        prerelease: bool,
-    },
-}
+use clap::Parser;
+use cram_cli::{Cli, Command, SelfCommand};
 
 fn main() {
     tracing_subscriber::fmt()
