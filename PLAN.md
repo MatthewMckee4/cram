@@ -18,7 +18,7 @@ Mark items ✅ when done. Add new items freely.
 - [x] Card tags/categories within a deck
 - [x] Bulk card operations (select all, delete selected)
 - [x] Deck statistics: cards by interval bucket histogram
-- [ ] Study session summary screen (cards reviewed, time taken, retention %)
+- [x] Study session summary screen (cards reviewed, time taken, retention %)
 - [ ] Undo last rating
 
 ## Phase 3 — Typst Excellence
