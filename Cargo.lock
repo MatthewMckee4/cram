@@ -1264,6 +1264,7 @@ name = "cram_cli"
 version = "0.0.0"
 dependencies = [
  "clap",
+ "cram_static",
 ]
 
 [[package]]
@@ -1291,11 +1292,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cram_static"
+version = "0.0.0"
+
+[[package]]
 name = "cram_store"
 version = "0.0.0"
 dependencies = [
  "anyhow",
  "cram_core",
+ "cram_static",
  "dirs",
  "tempfile",
  "thiserror 2.0.18",

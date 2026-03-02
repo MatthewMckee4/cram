@@ -1,5 +1,14 @@
-pub fn list() -> anyhow::Result<()> {
-    let store = cram_store::Store::new()?;
+use crate::settings::GlobalSettings;
+
+fn store(settings: &GlobalSettings) -> anyhow::Result<cram_store::Store> {
+    match &settings.decks_dir {
+        Some(dir) => cram_store::Store::with_dir(dir.clone()),
+        None => cram_store::Store::new(),
+    }
+}
+
+pub fn list(settings: &GlobalSettings) -> anyhow::Result<()> {
+    let store = store(settings)?;
     let decks = store.load_all_decks()?;
     if decks.is_empty() {
         println!("No decks found.");
@@ -11,8 +20,8 @@ pub fn list() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn dir() -> anyhow::Result<()> {
-    let store = cram_store::Store::new()?;
+pub fn dir(settings: &GlobalSettings) -> anyhow::Result<()> {
+    let store = store(settings)?;
     println!("{}", store.data_dir().display());
     Ok(())
 }

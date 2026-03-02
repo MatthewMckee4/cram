@@ -10,6 +10,8 @@ pub struct TestContext {
     filters: Vec<(String, String)>,
     /// The temporary directory for this test.
     pub _root: tempfile::TempDir,
+    /// The decks directory within the temporary root.
+    decks_dir: PathBuf,
 }
 
 impl TestContext {
@@ -18,16 +20,21 @@ impl TestContext {
         let root = tempfile::TempDir::with_prefix("cram-test")
             .expect("Failed to create test root directory");
 
+        eprintln!("{}", root.path().display());
+
+        let decks_dir = root.path().join("decks");
+
         let mut filters = Vec::new();
 
         filters.extend(
             Self::path_patterns(root.path())
                 .into_iter()
-                .map(|pattern| (pattern, "[TEMP]".to_string())),
+                .map(|pattern| (pattern, "[TEMP]/".to_string())),
         );
 
         Self {
             _root: root,
+            decks_dir,
             filters,
         }
     }
@@ -66,11 +73,10 @@ impl TestContext {
             .collect()
     }
 
-    /// Create a `cram` command with isolated HOME/XDG env vars.
+    /// Create a `cram` command with an isolated decks directory.
     pub fn command(&self) -> Command {
         let mut command = Self::new_command();
-        command.env("HOME", self._root.path());
-        command.env("XDG_DATA_HOME", self._root.path().join("data"));
+        command.env("CRAM_DECKS_DIR", &self.decks_dir);
         command
     }
 

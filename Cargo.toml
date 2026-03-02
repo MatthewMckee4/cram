@@ -14,6 +14,7 @@ license = "MIT"
 cram_cli = { path = "crates/cram_cli" }
 cram_core = { path = "crates/cram_core" }
 cram_render = { path = "crates/cram_render" }
+cram_static = { path = "crates/cram_static" }
 cram_store = { path = "crates/cram_store" }
 cram_ui = { path = "crates/cram_ui" }
 

@@ -1,4 +1,6 @@
-use clap::{Parser, Subcommand};
+use std::path::PathBuf;
+
+use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
@@ -9,6 +11,21 @@ use clap::{Parser, Subcommand};
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
+    #[command(flatten)]
+    pub top_level: TopLevelArgs,
+}
+
+#[derive(Args)]
+pub struct TopLevelArgs {
+    #[command(flatten)]
+    pub global_args: Box<GlobalArgs>,
+}
+
+#[derive(Args)]
+pub struct GlobalArgs {
+    /// Override the directory where decks are stored
+    #[arg(long, global = true, env = cram_static::EnvVars::DECKS_DIR)]
+    pub decks_dir: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]

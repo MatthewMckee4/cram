@@ -90,7 +90,7 @@ impl PreviewDebounce {
 
 impl CramApp {
     pub fn new(_cc: &CreationContext) -> Self {
-        let store = Store::new().unwrap_or_default();
+        let store = Store::from_env_or_default().unwrap_or_default();
         let decks = store.load_all_decks().unwrap_or_default();
         let mut app = Self {
             store,
