@@ -104,6 +104,11 @@ impl DeckListView {
                                                 deck_name: deck.name.clone(),
                                             };
                                         }
+                                        if ui.small_button("Deck Stats").clicked() {
+                                            *view = View::DeckStats {
+                                                deck_name: deck.name.clone(),
+                                            };
+                                        }
                                     });
                                 });
                             });
