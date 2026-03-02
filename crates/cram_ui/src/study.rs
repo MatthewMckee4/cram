@@ -30,12 +30,12 @@ impl StudyView {
             return;
         }
 
-        let Some(deck) = decks.iter().find(|d| d.name == deck_name) else {
+        let Some(deck) = decks.iter().find(|d| d.name() == deck_name) else {
             ui.label("Deck not found.");
             return;
         };
 
-        if deck.cards.is_empty() {
+        if deck.cards().is_empty() {
             ui.vertical_centered(|ui| {
                 ui.add_space(120.0);
                 ui.heading("No cards in this deck.");
@@ -66,14 +66,14 @@ impl StudyView {
             ui.add_space(16.0);
 
             let card_text = if *revealed {
-                deck.cards[card_pos].back.clone()
+                deck.cards()[card_pos].back().to_string()
             } else {
-                deck.cards[card_pos].front.clone()
+                deck.cards()[card_pos].front().to_string()
             };
-            let card_source = if deck.preamble.is_empty() {
+            let card_source = if deck.preamble().is_empty() {
                 card_text
             } else {
-                format!("{}\n{card_text}", deck.preamble)
+                format!("{}\n{card_text}", deck.preamble())
             };
 
             let dark_mode = ui.visuals().dark_mode;

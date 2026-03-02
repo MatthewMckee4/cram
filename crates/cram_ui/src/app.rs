@@ -116,23 +116,23 @@ impl CramApp {
     fn seed_sample_deck(&mut self) {
         use cram_core::Card;
         let mut deck = Deck::new("Rust Basics", "Core Rust concepts");
-        deck.cards.push(Card::new(
+        deck.cards_mut().push(Card::new(
             "= Ownership\nWhat are the three ownership rules in Rust?",
             "1. Each value has a single *owner*\n2. Only one owner at a time\n3. Owner drops → value is dropped",
         ));
-        deck.cards.push(Card::new(
+        deck.cards_mut().push(Card::new(
             "= Borrowing\nWhat is the difference between `&T` and `&mut T`?",
             "- `&T` — shared reference, many allowed simultaneously\n- `&mut T` — exclusive reference, only one at a time",
         ));
-        deck.cards.push(Card::new(
+        deck.cards_mut().push(Card::new(
             "= Lifetimes\nWhat does a lifetime annotation like `'a` express?",
             "It constrains how long a reference is valid, ensuring references don't outlive the data they point to.",
         ));
-        deck.cards.push(Card::new(
+        deck.cards_mut().push(Card::new(
             "= Traits\nHow do you implement a trait for a type?",
             "```rust\nimpl MyTrait for MyType {\n    fn method(&self) { ... }\n}\n```",
         ));
-        deck.cards.push(Card::new(
+        deck.cards_mut().push(Card::new(
             "= Closures\nWhat makes Rust closures different from regular functions?",
             "Closures *capture* their environment. They implement `Fn`, `FnMut`, or `FnOnce` depending on how they use captured variables.",
         ));

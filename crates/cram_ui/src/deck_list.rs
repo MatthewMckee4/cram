@@ -51,15 +51,15 @@ impl DeckListView {
                 .spacing([16.0, 16.0])
                 .show(ui, |ui| {
                     for (i, deck) in decks.iter().enumerate() {
-                        let total = deck.cards.len();
+                        let total = deck.cards().len();
 
                         style::card_frame(ui).show(ui, |ui| {
                             ui.set_min_width(200.0);
                             ui.vertical(|ui| {
-                                ui.heading(&deck.name);
-                                if !deck.description.is_empty() {
+                                ui.heading(deck.name());
+                                if !deck.description().is_empty() {
                                     ui.label(
-                                        egui::RichText::new(&deck.description)
+                                        egui::RichText::new(deck.description())
                                             .italics()
                                             .color(ui.visuals().weak_text_color()),
                                     );
@@ -69,7 +69,7 @@ impl DeckListView {
                                 ui.horizontal(|ui| {
                                     if ui.add(style::accent_button("Study")).clicked() {
                                         *view = View::Study {
-                                            deck_name: deck.name.clone(),
+                                            deck_name: deck.name().to_string(),
                                             card_index: 0,
                                             revealed: false,
                                             shuffled_indices: shuffled_indices(total),
@@ -83,7 +83,7 @@ impl DeckListView {
                                         .clicked()
                                     {
                                         *view = View::Editor {
-                                            deck_name: deck.name.clone(),
+                                            deck_name: deck.name().to_string(),
                                             card_index: None,
                                         };
                                     }

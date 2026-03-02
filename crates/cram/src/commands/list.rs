@@ -6,7 +6,7 @@ pub fn list_decks() -> anyhow::Result<()> {
         return Ok(());
     }
     for deck in &decks {
-        println!("{} ({} cards)", deck.name, deck.cards.len());
+        println!("{} ({} cards)", deck.name(), deck.cards().len());
     }
     Ok(())
 }
