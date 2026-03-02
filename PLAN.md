@@ -32,4 +32,4 @@ Mark items ✅ when done. Add new items freely.
 - [x] Integration tests in it/ directory
 - [x] Benchmark: render throughput (typst compile + rasterise)
 - [x] CI workflow (.github/workflows/ci.yml)
-- [ ] Docs: fill out all zensical pages with real content
+- [x] Docs: fill out all zensical pages with real content
