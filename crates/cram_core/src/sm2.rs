@@ -97,4 +97,45 @@ mod tests {
         review_card(&mut card, Rating::Easy);
         assert!(card.ease <= 2.5);
     }
+
+    #[test]
+    fn hard_increases_interval_slightly() {
+        let mut card = fresh_card();
+        let old = card.interval;
+        review_card(&mut card, Rating::Hard);
+        assert!((card.interval - old * 1.2).abs() < 0.001);
+    }
+
+    #[test]
+    fn hard_reduces_ease() {
+        let mut card = fresh_card();
+        let old_ease = card.ease;
+        review_card(&mut card, Rating::Hard);
+        assert!(card.ease < old_ease);
+    }
+
+    #[test]
+    fn good_preserves_ease() {
+        let mut card = fresh_card();
+        let old_ease = card.ease;
+        review_card(&mut card, Rating::Good);
+        assert!((card.ease - old_ease).abs() < 0.001);
+    }
+
+    #[test]
+    fn easy_interval_larger_than_good() {
+        let mut good_card = fresh_card();
+        let mut easy_card = fresh_card();
+        review_card(&mut good_card, Rating::Good);
+        review_card(&mut easy_card, Rating::Easy);
+        assert!(easy_card.interval > good_card.interval);
+    }
+
+    #[test]
+    fn due_date_advances_after_review() {
+        let mut card = fresh_card();
+        let today = Utc::now().date_naive();
+        review_card(&mut card, Rating::Good);
+        assert!(card.due > today);
+    }
 }

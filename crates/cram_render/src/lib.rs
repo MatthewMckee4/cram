@@ -61,4 +61,17 @@ mod tests {
         let bytes = render("Hello, this is *bold* and _italic_.").expect("text render failed");
         assert!(!bytes.is_empty());
     }
+
+    #[test]
+    fn render_special_characters() {
+        let bytes = render("Symbols: & < > \" ' @").expect("special chars render failed");
+        assert_eq!(&bytes[..4], b"\x89PNG");
+    }
+
+    #[test]
+    fn render_multiline_content() {
+        let source = "= Title\n\nFirst paragraph.\n\nSecond paragraph with *emphasis*.";
+        let bytes = render(source).expect("multiline render failed");
+        assert_eq!(&bytes[..4], b"\x89PNG");
+    }
 }
