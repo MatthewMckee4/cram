@@ -29,8 +29,18 @@ impl DeckListView {
             ui.add_space(12.0);
 
             if decks.is_empty() {
-                ui.centered_and_justified(|ui| {
-                    ui.label("No decks yet. Create one to get started!");
+                ui.vertical_centered(|ui| {
+                    ui.add_space(80.0);
+                    ui.label(egui::RichText::new("📚").size(64.0));
+                    ui.add_space(16.0);
+                    ui.heading("No decks yet");
+                    ui.add_space(8.0);
+                    ui.label("Create your first deck to start studying!");
+                    ui.add_space(16.0);
+                    if ui.button("＋ Create Deck").clicked() {
+                        *new_deck_name = String::new();
+                        *view = View::NewDeck;
+                    }
                 });
                 return;
             }
