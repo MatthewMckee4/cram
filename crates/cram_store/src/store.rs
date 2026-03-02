@@ -127,4 +127,52 @@ mod tests {
         store.delete_deck("to_delete").unwrap();
         assert!(store.load_deck("to_delete").is_err());
     }
+
+    #[test]
+    fn list_decks_empty_initially() {
+        let (store, _dir) = temp_store();
+        let names = store.list_decks().unwrap();
+        assert!(names.is_empty());
+    }
+
+    #[test]
+    fn delete_missing_deck_errors() {
+        let (store, _dir) = temp_store();
+        assert!(store.delete_deck("nonexistent").is_err());
+    }
+
+    #[test]
+    fn save_deck_with_unicode_name() {
+        let (store, _dir) = temp_store();
+        let deck = Deck::new("日本語テスト", "unicode description");
+        store.save_deck(&deck).unwrap();
+        let loaded = store.load_deck("日本語テスト").unwrap();
+        assert_eq!(loaded.name, "日本語テスト");
+        assert_eq!(loaded.description, "unicode description");
+    }
+
+    #[test]
+    fn load_all_decks_returns_all() {
+        let (store, _dir) = temp_store();
+        store.save_deck(&Deck::new("one", "")).unwrap();
+        store.save_deck(&Deck::new("two", "")).unwrap();
+        store.save_deck(&Deck::new("three", "")).unwrap();
+        let all = store.load_all_decks().unwrap();
+        assert_eq!(all.len(), 3);
+    }
+
+    #[test]
+    fn overwrite_deck_preserves_name() {
+        let (store, _dir) = temp_store();
+        let mut deck = Deck::new("stable", "v1");
+        deck.cards.push(Card::new("Q", "A"));
+        store.save_deck(&deck).unwrap();
+
+        deck.description = "v2".to_string();
+        store.save_deck(&deck).unwrap();
+
+        let loaded = store.load_deck("stable").unwrap();
+        assert_eq!(loaded.name, "stable");
+        assert_eq!(loaded.description, "v2");
+    }
 }
