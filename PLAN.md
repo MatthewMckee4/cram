@@ -5,7 +5,7 @@ Mark items ✅ when done. Add new items freely.
 
 ## Phase 1 — Core Polish (do first)
 - [x] Stats view: show total cards, due today, retention rate, streak
-- [ ] Progress bar during study session (card N of M)
+- [x] Progress bar during study session (card N of M)
 - [ ] Keyboard shortcuts: Space=reveal, 1/2/3/4=rate, Esc=back
 - [ ] Dark/light theme toggle in settings
 - [ ] Search cards across all decks
