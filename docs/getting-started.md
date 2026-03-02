@@ -47,8 +47,3 @@ Open the preamble editor via the collapsible **Deck Preamble** section in the ca
 | 3 | Rate: Good |
 | 4 | Rate: Easy |
 | Esc | Back to deck list |
-
-## Import and export
-
-- **Import CSV:** Click **Import CSV** on a deck, paste CSV lines (one card per line: `front,back`), and click Import
-- **Export CSV:** Click **Export CSV** to generate a comma-separated dump of all cards in the deck

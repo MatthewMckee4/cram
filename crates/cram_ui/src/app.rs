@@ -26,12 +26,6 @@ pub enum View {
     NewDeck,
     Stats,
     Search,
-    ImportCsv {
-        deck_name: String,
-    },
-    ExportCsv {
-        deck_name: String,
-    },
     SessionSummary {
         deck_name: String,
         cards_reviewed: u32,
@@ -48,7 +42,6 @@ pub struct CramApp {
     error_message: Option<String>,
     dark_mode: bool,
     search_query: String,
-    csv_buffer: String,
     selected_cards: std::collections::HashSet<usize>,
     session_start: Option<std::time::Instant>,
     session_reviewed: u32,
@@ -108,7 +101,6 @@ impl CramApp {
             error_message: None,
             dark_mode: true,
             search_query: String::new(),
-            csv_buffer: String::new(),
             selected_cards: std::collections::HashSet::new(),
             session_start: None,
             session_reviewed: 0,
@@ -149,100 +141,6 @@ impl CramApp {
         } else {
             self.decks.push(deck);
         }
-    }
-}
-
-impl CramApp {
-    fn show_import_csv(
-        ui: &mut egui::Ui,
-        decks: &mut [Deck],
-        deck_name: &str,
-        csv_buffer: &mut String,
-        store: &Store,
-        view: &mut View,
-        error_message: &mut Option<String>,
-    ) {
-        ui.vertical(|ui| {
-            ui.add_space(16.0);
-            ui.heading(format!("Import CSV into: {deck_name}"));
-            ui.add_space(8.0);
-            ui.label("Paste CSV content below (one card per line: front,back):");
-            ui.add_space(4.0);
-            ui.add(
-                egui::TextEdit::multiline(csv_buffer)
-                    .font(egui::TextStyle::Monospace)
-                    .desired_rows(12)
-                    .desired_width(ui.available_width()),
-            );
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui.button("Import").clicked()
-                    && let Some(deck) = decks.iter_mut().find(|d| d.name == deck_name)
-                {
-                    let mut count = 0u32;
-                    for line in csv_buffer.lines() {
-                        let line = line.trim();
-                        if line.is_empty() {
-                            continue;
-                        }
-                        if let Some((front, back)) = line.split_once(',') {
-                            let front = front.trim();
-                            let back = back.trim();
-                            if !front.is_empty() {
-                                deck.cards.push(cram_core::Card::new(front, back));
-                                count += 1;
-                            }
-                        }
-                    }
-                    if let Err(e) = store.save_deck(deck) {
-                        *error_message = Some(format!("Save failed: {e}"));
-                    }
-                    csv_buffer.clear();
-                    *view = View::Editor {
-                        deck_name: deck_name.to_string(),
-                        card_index: None,
-                    };
-                    tracing::info!("imported {count} cards into {deck_name}");
-                }
-                if ui.button("Cancel").clicked() {
-                    csv_buffer.clear();
-                    *view = View::DeckList;
-                }
-            });
-        });
-    }
-
-    fn show_export_csv(
-        ui: &mut egui::Ui,
-        decks: &[Deck],
-        deck_name: &str,
-        csv_buffer: &mut String,
-    ) {
-        ui.vertical(|ui| {
-            ui.add_space(16.0);
-            ui.heading(format!("Export CSV: {deck_name}"));
-            ui.add_space(8.0);
-
-            if let Some(deck) = decks.iter().find(|d| d.name == deck_name) {
-                if csv_buffer.is_empty() {
-                    for card in &deck.cards {
-                        let front = card.front.replace(',', ";");
-                        let back = card.back.replace(',', ";");
-                        csv_buffer.push_str(&format!("{front},{back}\n"));
-                    }
-                }
-                ui.label("Copy the CSV content below:");
-                ui.add_space(4.0);
-                ui.add(
-                    egui::TextEdit::multiline(csv_buffer)
-                        .font(egui::TextStyle::Monospace)
-                        .desired_rows(12)
-                        .desired_width(ui.available_width()),
-                );
-            } else {
-                ui.label("Deck not found.");
-            }
-        });
     }
 }
 
@@ -376,20 +274,6 @@ impl eframe::App for CramApp {
                 }
                 View::Search => {
                     SearchView::show(ui, &self.decks, &mut self.search_query);
-                }
-                View::ImportCsv { deck_name } => {
-                    Self::show_import_csv(
-                        ui,
-                        &mut self.decks,
-                        &deck_name,
-                        &mut self.csv_buffer,
-                        &self.store,
-                        &mut self.view,
-                        &mut self.error_message,
-                    );
-                }
-                View::ExportCsv { deck_name } => {
-                    Self::show_export_csv(ui, &self.decks, &deck_name, &mut self.csv_buffer);
                 }
                 View::SessionSummary {
                     deck_name,
