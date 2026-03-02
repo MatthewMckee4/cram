@@ -36,6 +36,8 @@ pub struct Deck {
     pub description: String,
     pub created: NaiveDate,
     pub cards: Vec<Card>,
+    #[serde(default)]
+    pub preamble: String,
 }
 
 impl Deck {
@@ -45,6 +47,7 @@ impl Deck {
             description: description.into(),
             created: Utc::now().date_naive(),
             cards: Vec::new(),
+            preamble: String::new(),
         }
     }
 

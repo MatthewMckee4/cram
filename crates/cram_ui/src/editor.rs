@@ -72,6 +72,33 @@ impl EditorView {
             });
 
             ui.separator();
+
+            egui::CollapsingHeader::new("Deck Preamble (shared Typst)")
+                .default_open(!deck.preamble.is_empty())
+                .show(ui, |ui| {
+                    ui.label("This Typst code is prepended to every card when rendering:");
+                    let dark = ui.visuals().dark_mode;
+                    let mut preamble_layouter =
+                        |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
+                            let mut job = typst_layout_job(text.as_str(), dark);
+                            job.wrap.max_width = wrap_width;
+                            ui.fonts_mut(|f| f.layout_job(job))
+                        };
+                    if ui
+                        .add(
+                            egui::TextEdit::multiline(&mut deck.preamble)
+                                .font(egui::TextStyle::Monospace)
+                                .desired_rows(3)
+                                .desired_width(ui.available_width())
+                                .layouter(&mut preamble_layouter),
+                        )
+                        .changed()
+                    {
+                        let _ = store.save_deck(deck);
+                        texture_cache.clear();
+                    }
+                });
+
             ui.add_space(8.0);
 
             egui::ScrollArea::vertical().show(ui, |ui| {
@@ -164,12 +191,16 @@ impl EditorView {
                                         ui.horizontal(|ui| {
                                             ui.label("Preview:");
                                             if ui.small_button("Full Screen").clicked() {
-                                                *fullscreen_preview =
-                                                    Some(deck.cards[i].front.clone());
+                                                *fullscreen_preview = Some(with_preamble(
+                                                    &deck.preamble,
+                                                    &deck.cards[i].front,
+                                                ));
                                             }
                                         });
                                         let front = deck.cards[i].front.clone();
-                                        let source = preview_debounce.render_source(i, &front, ctx);
+                                        let debounced =
+                                            preview_debounce.render_source(i, &front, ctx);
+                                        let source = with_preamble(&deck.preamble, &debounced);
                                         let key = format!("editor-{i}-{source}");
                                         match get_or_render(ctx, &key, &source, texture_cache) {
                                             Ok(tex) => {
@@ -209,6 +240,14 @@ impl EditorView {
                 }
             });
         });
+    }
+}
+
+fn with_preamble(preamble: &str, body: &str) -> String {
+    if preamble.is_empty() {
+        body.to_string()
+    } else {
+        format!("{preamble}\n{body}")
     }
 }
 

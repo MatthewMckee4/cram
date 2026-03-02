@@ -74,10 +74,15 @@ impl StudyView {
             ui.add_space(16.0);
 
             // Card display area
-            let card_source = if *revealed {
+            let card_text = if *revealed {
                 deck.cards[card_pos].back.clone()
             } else {
                 deck.cards[card_pos].front.clone()
+            };
+            let card_source = if deck.preamble.is_empty() {
+                card_text
+            } else {
+                format!("{}\n{card_text}", deck.preamble)
             };
 
             let render_result = get_or_render(ctx, &card_source, &card_source, texture_cache);
