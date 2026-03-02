@@ -36,3 +36,7 @@ uuid          = { version = "1", features = ["v4", "serde"] }
 
 [profile.dev]
 opt-level = 0
+
+[profile.dist]
+inherits = "release"
+lto = "thin"

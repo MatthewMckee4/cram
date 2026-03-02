@@ -1057,7 +1057,7 @@ dependencies = [
 
 [[package]]
 name = "cram"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "cram_ui",
  "eframe",
@@ -1067,7 +1067,7 @@ dependencies = [
 
 [[package]]
 name = "cram_core"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "chrono",
  "serde",
@@ -1076,7 +1076,7 @@ dependencies = [
 
 [[package]]
 name = "cram_it"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "chrono",
  "cram_core",
@@ -1087,7 +1087,7 @@ dependencies = [
 
 [[package]]
 name = "cram_render"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -1100,7 +1100,7 @@ dependencies = [
 
 [[package]]
 name = "cram_store"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "cram_core",
@@ -1112,7 +1112,7 @@ dependencies = [
 
 [[package]]
 name = "cram_ui"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "chrono",
  "cram_core",
