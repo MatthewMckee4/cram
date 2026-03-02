@@ -35,15 +35,15 @@ fn end_to_end_save_render_cycle() {
     let store = Store::with_dir(dir.path().to_path_buf()).expect("store");
 
     let mut deck = Deck::new("RenderTest", "");
-    deck.cards.push(Card::new(
+    deck.cards_mut().push(Card::new(
         "= Ownership\nWhat are the rules?",
         "1. One owner\n2. Borrows don't outlive owner",
     ));
-    deck.preamble = "#set text(size: 12pt)".to_string();
+    *deck.preamble_mut() = "#set text(size: 12pt)".to_string();
     store.save_deck(&deck).expect("save");
 
     let loaded = store.load_deck("RenderTest").expect("load");
-    let source = format!("{}\n{}", loaded.preamble, loaded.cards[0].front);
+    let source = format!("{}\n{}", loaded.preamble(), loaded.cards()[0].front());
     let bytes = cram_render::render(&source, false).expect("render");
     assert_eq!(&bytes[..4], b"\x89PNG");
     assert!(bytes.len() > 100);

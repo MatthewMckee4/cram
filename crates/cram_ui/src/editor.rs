@@ -22,7 +22,7 @@ impl EditorView {
         preview_debounce: &mut PreviewDebounce,
         fullscreen_preview: &mut Option<String>,
     ) {
-        let Some(deck) = decks.iter_mut().find(|d| d.name == deck_name) else {
+        let Some(deck) = decks.iter_mut().find(|d| d.name() == deck_name) else {
             ui.label("Deck not found.");
             return;
         };
@@ -32,7 +32,7 @@ impl EditorView {
                 ui.heading(format!("Edit: {deck_name}"));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.add(style::accent_button("+ Add Card")).clicked() {
-                        deck.cards.push(Card::new("Front", "Back"));
+                        deck.cards_mut().push(Card::new("Front", "Back"));
                         let _ = store.save_deck(deck);
                     }
                 });
@@ -40,7 +40,7 @@ impl EditorView {
 
             ui.horizontal(|ui| {
                 let all_selected =
-                    !deck.cards.is_empty() && selected_cards.len() == deck.cards.len();
+                    !deck.cards().is_empty() && selected_cards.len() == deck.cards().len();
                 if ui
                     .button(if all_selected {
                         "Deselect All"
@@ -52,7 +52,7 @@ impl EditorView {
                     if all_selected {
                         selected_cards.clear();
                     } else {
-                        *selected_cards = (0..deck.cards.len()).collect();
+                        *selected_cards = (0..deck.cards().len()).collect();
                     }
                 }
                 if !selected_cards.is_empty()
@@ -66,8 +66,8 @@ impl EditorView {
                     let mut indices: Vec<usize> = selected_cards.iter().copied().collect();
                     indices.sort_unstable_by(|a, b| b.cmp(a));
                     for idx in indices {
-                        if idx < deck.cards.len() {
-                            deck.cards.remove(idx);
+                        if idx < deck.cards().len() {
+                            deck.cards_mut().remove(idx);
                         }
                     }
                     selected_cards.clear();
@@ -78,7 +78,7 @@ impl EditorView {
             ui.separator();
 
             egui::CollapsingHeader::new("Deck Preamble (shared Typst)")
-                .default_open(!deck.preamble.is_empty())
+                .default_open(!deck.preamble().is_empty())
                 .show(ui, |ui| {
                     ui.label("This Typst code is prepended to every card when rendering:");
                     let dark = ui.visuals().dark_mode;
@@ -90,7 +90,7 @@ impl EditorView {
                         };
                     if ui
                         .add(
-                            egui::TextEdit::multiline(&mut deck.preamble)
+                            egui::TextEdit::multiline(deck.preamble_mut())
                                 .font(egui::TextStyle::Monospace)
                                 .desired_rows(3)
                                 .desired_width(ui.available_width())
@@ -108,15 +108,15 @@ impl EditorView {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let mut to_delete: Option<usize> = None;
                 let mut save_now = false;
-                let count = deck.cards.len();
+                let count = deck.cards().len();
 
                 for i in 0..count {
                     let preview = {
-                        let f = &deck.cards[i].front;
+                        let f = deck.cards()[i].front();
                         if f.len() > 50 {
                             format!("{}...", &f[..50])
                         } else {
-                            f.clone()
+                            f.to_string()
                         }
                     };
 
@@ -138,7 +138,6 @@ impl EditorView {
                                 let col_w = avail_w / 2.0 - 8.0;
 
                                 ui.horizontal(|ui| {
-                                    // Left column: editors
                                     ui.vertical(|ui| {
                                         ui.set_max_width(col_w);
                                         let dark = ui.visuals().dark_mode;
@@ -152,11 +151,13 @@ impl EditorView {
                                         };
                                         ui.label("Front (Typst):");
                                         ui.add(
-                                            egui::TextEdit::multiline(&mut deck.cards[i].front)
-                                                .font(egui::TextStyle::Monospace)
-                                                .desired_rows(5)
-                                                .desired_width(col_w)
-                                                .layouter(&mut front_layouter),
+                                            egui::TextEdit::multiline(
+                                                deck.cards_mut()[i].front_mut(),
+                                            )
+                                            .font(egui::TextStyle::Monospace)
+                                            .desired_rows(5)
+                                            .desired_width(col_w)
+                                            .layouter(&mut front_layouter),
                                         );
                                         ui.add_space(4.0);
                                         let mut back_layouter = |ui: &egui::Ui,
@@ -169,17 +170,19 @@ impl EditorView {
                                         };
                                         ui.label("Back (Typst):");
                                         ui.add(
-                                            egui::TextEdit::multiline(&mut deck.cards[i].back)
-                                                .font(egui::TextStyle::Monospace)
-                                                .desired_rows(5)
-                                                .desired_width(col_w)
-                                                .layouter(&mut back_layouter),
+                                            egui::TextEdit::multiline(
+                                                deck.cards_mut()[i].back_mut(),
+                                            )
+                                            .font(egui::TextStyle::Monospace)
+                                            .desired_rows(5)
+                                            .desired_width(col_w)
+                                            .layouter(&mut back_layouter),
                                         );
                                         ui.add_space(4.0);
                                         ui.label("Tags (comma-separated):");
-                                        let mut tags_str = deck.cards[i].tags.join(", ");
+                                        let mut tags_str = deck.cards()[i].tags().join(", ");
                                         if ui.text_edit_singleline(&mut tags_str).changed() {
-                                            deck.cards[i].tags = tags_str
+                                            *deck.cards_mut()[i].tags_mut() = tags_str
                                                 .split(',')
                                                 .map(|t| t.trim().to_string())
                                                 .filter(|t| !t.is_empty())
@@ -189,22 +192,21 @@ impl EditorView {
 
                                     ui.separator();
 
-                                    // Right column: preview
                                     ui.vertical(|ui| {
                                         ui.set_max_width(col_w);
                                         ui.horizontal(|ui| {
                                             ui.label("Preview:");
                                             if ui.small_button("Full Screen").clicked() {
                                                 *fullscreen_preview = Some(with_preamble(
-                                                    &deck.preamble,
-                                                    &deck.cards[i].front,
+                                                    deck.preamble(),
+                                                    deck.cards()[i].front(),
                                                 ));
                                             }
                                         });
-                                        let front = deck.cards[i].front.clone();
+                                        let front = deck.cards()[i].front().to_string();
                                         let debounced =
                                             preview_debounce.render_source(i, &front, ctx);
-                                        let source = with_preamble(&deck.preamble, &debounced);
+                                        let source = with_preamble(deck.preamble(), &debounced);
                                         let key = format!("editor-{i}-{source}");
                                         let dark_mode = ui.visuals().dark_mode;
                                         match get_or_render(
@@ -246,7 +248,7 @@ impl EditorView {
                     let _ = store.save_deck(deck);
                 }
                 if let Some(idx) = to_delete {
-                    deck.cards.remove(idx);
+                    deck.cards_mut().remove(idx);
                     let _ = store.save_deck(deck);
                 }
             });

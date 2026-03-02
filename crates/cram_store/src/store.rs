@@ -31,7 +31,7 @@ impl Store {
 
     pub fn save_deck(&self, deck: &Deck) -> Result<()> {
         let content = toml::to_string_pretty(deck)?;
-        Ok(std::fs::write(self.deck_path(&deck.name), content)?)
+        Ok(std::fs::write(self.deck_path(deck.name()), content)?)
     }
 
     pub fn load_deck(&self, name: &str) -> Result<Deck> {
@@ -96,12 +96,12 @@ mod tests {
     fn save_and_load_roundtrip() {
         let (store, _dir) = temp_store();
         let mut deck = Deck::new("test", "a test deck");
-        deck.cards.push(Card::new("Q", "A"));
+        deck.cards_mut().push(Card::new("Q", "A"));
         store.save_deck(&deck).unwrap();
         let loaded = store.load_deck("test").unwrap();
-        assert_eq!(loaded.name, "test");
-        assert_eq!(loaded.cards.len(), 1);
-        assert_eq!(loaded.cards[0].front, "Q");
+        assert_eq!(loaded.name(), "test");
+        assert_eq!(loaded.cards().len(), 1);
+        assert_eq!(loaded.cards()[0].front(), "Q");
     }
 
     #[test]
@@ -147,8 +147,8 @@ mod tests {
         let deck = Deck::new("日本語テスト", "unicode description");
         store.save_deck(&deck).unwrap();
         let loaded = store.load_deck("日本語テスト").unwrap();
-        assert_eq!(loaded.name, "日本語テスト");
-        assert_eq!(loaded.description, "unicode description");
+        assert_eq!(loaded.name(), "日本語テスト");
+        assert_eq!(loaded.description(), "unicode description");
     }
 
     #[test]
@@ -165,14 +165,14 @@ mod tests {
     fn overwrite_deck_preserves_name() {
         let (store, _dir) = temp_store();
         let mut deck = Deck::new("stable", "v1");
-        deck.cards.push(Card::new("Q", "A"));
+        deck.cards_mut().push(Card::new("Q", "A"));
         store.save_deck(&deck).unwrap();
 
-        deck.description = "v2".to_string();
+        deck.set_description("v2");
         store.save_deck(&deck).unwrap();
 
         let loaded = store.load_deck("stable").unwrap();
-        assert_eq!(loaded.name, "stable");
-        assert_eq!(loaded.description, "v2");
+        assert_eq!(loaded.name(), "stable");
+        assert_eq!(loaded.description(), "v2");
     }
 }

@@ -29,11 +29,11 @@ impl SearchView {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for deck in decks {
                     let matches: Vec<_> = deck
-                        .cards
+                        .cards()
                         .iter()
                         .filter(|c| {
-                            c.front.to_lowercase().contains(&lower_query)
-                                || c.back.to_lowercase().contains(&lower_query)
+                            c.front().to_lowercase().contains(&lower_query)
+                                || c.back().to_lowercase().contains(&lower_query)
                         })
                         .collect();
 
@@ -42,13 +42,13 @@ impl SearchView {
                     }
                     found = true;
 
-                    ui.heading(&deck.name);
+                    ui.heading(deck.name());
                     ui.separator();
 
                     for card in matches {
                         style::card_frame(ui).inner_margin(12.0).show(ui, |ui| {
-                            ui.label(egui::RichText::new(&card.front).strong());
-                            ui.label(&card.back);
+                            ui.label(egui::RichText::new(card.front()).strong());
+                            ui.label(card.back());
                         });
                         ui.add_space(4.0);
                     }
