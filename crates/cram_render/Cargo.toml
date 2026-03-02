@@ -15,6 +15,7 @@ typst-kit.workspace = true
 typst-render.workspace = true
 
 [dev-dependencies]
+image.workspace = true
 criterion.workspace = true
 
 [[bench]]
