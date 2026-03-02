@@ -15,7 +15,7 @@ Mark items ✅ when done. Add new items freely.
 ## Phase 2 — Power Features
 - [x] Import cards from CSV (front,back format)
 - [x] Export deck to CSV
-- [ ] Card tags/categories within a deck
+- [x] Card tags/categories within a deck
 - [ ] Bulk card operations (select all, delete selected)
 - [ ] Deck statistics: cards by interval bucket histogram
 - [ ] Study session summary screen (cards reviewed, time taken, retention %)
