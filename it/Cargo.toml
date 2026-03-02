@@ -5,8 +5,8 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-cram_core = { path = "../crates/cram_core" }
-cram_store = { path = "../crates/cram_store" }
-cram_render = { path = "../crates/cram_render" }
 chrono = { workspace = true }
+cram_core = { path = "../crates/cram_core" }
+cram_render = { path = "../crates/cram_render" }
+cram_store = { path = "../crates/cram_store" }
 tempfile = { workspace = true }
