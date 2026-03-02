@@ -6,7 +6,6 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-anyhow.workspace = true
 chrono.workspace = true
 cram_core.workspace = true
 cram_render.workspace = true

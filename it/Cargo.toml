@@ -5,6 +5,8 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+
+[dev-dependencies]
 chrono = { workspace = true }
 cram_core = { path = "../crates/cram_core" }
 cram_render = { path = "../crates/cram_render" }

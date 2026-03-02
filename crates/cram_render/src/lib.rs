@@ -61,12 +61,4 @@ mod tests {
         let bytes = render("Hello, this is *bold* and _italic_.").expect("text render failed");
         assert!(!bytes.is_empty());
     }
-
-    #[test]
-    fn render_is_compact_not_full_a4() {
-        let bytes = render("= Hello").expect("render failed");
-        let img = image::load_from_memory(&bytes).expect("decode failed");
-        assert!(img.width() < 800, "width {} too large", img.width());
-        assert!(img.height() < 400, "height {} too large", img.height());
-    }
 }

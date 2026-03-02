@@ -27,6 +27,11 @@ repos:
     hooks:
       - id: mdformat
 
+  - repo: https://github.com/nicolo-ribaudo/cargo-shear
+    rev: 1.9.1
+    hooks:
+      - id: cargo-shear
+
   - repo: local
     hooks:
       - id: cargo-fmt
