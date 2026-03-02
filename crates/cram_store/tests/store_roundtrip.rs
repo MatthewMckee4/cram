@@ -1,4 +1,4 @@
-use cram_core::{Card, Deck, Rating, review_card};
+use cram_core::{Card, Deck};
 use cram_store::Store;
 
 #[test]
@@ -9,7 +9,6 @@ fn save_load_preserves_all_card_fields() {
     let mut deck = Deck::new("Roundtrip", "test description");
     let mut card = Card::new("= Heading\nSome question?", "The answer is $x^2$");
     card.tags = vec!["math".into(), "algebra".into()];
-    review_card(&mut card, Rating::Good);
     deck.cards.push(card);
     deck.preamble = "#set text(size: 14pt)".to_string();
 
@@ -25,8 +24,6 @@ fn save_load_preserves_all_card_fields() {
     assert_eq!(c.front, "= Heading\nSome question?");
     assert_eq!(c.back, "The answer is $x^2$");
     assert_eq!(c.tags, vec!["math", "algebra"]);
-    assert_eq!(c.reps, 1);
-    assert!(c.interval > 1.0);
 }
 
 #[test]

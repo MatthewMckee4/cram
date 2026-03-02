@@ -51,7 +51,6 @@ impl DeckListView {
                 .spacing([16.0, 16.0])
                 .show(ui, |ui| {
                     for (i, deck) in decks.iter().enumerate() {
-                        let due = deck.due_count();
                         let total = deck.cards.len();
 
                         style::card_frame(ui).show(ui, |ui| {
@@ -66,21 +65,6 @@ impl DeckListView {
                                     );
                                 }
                                 ui.label(format!("{total} cards"));
-                                if due > 0 {
-                                    egui::Frame::new()
-                                        .fill(egui::Color32::from_rgb(255, 165, 0))
-                                        .corner_radius(10.0)
-                                        .inner_margin(egui::Margin::symmetric(8, 2))
-                                        .show(ui, |ui| {
-                                            ui.label(
-                                                egui::RichText::new(format!("{due} due"))
-                                                    .color(egui::Color32::WHITE)
-                                                    .strong(),
-                                            );
-                                        });
-                                } else {
-                                    ui.colored_label(egui::Color32::GREEN, "Up to date ✓");
-                                }
                                 ui.add_space(8.0);
                                 ui.horizontal(|ui| {
                                     if ui.add(style::accent_button("Study")).clicked() {
@@ -88,6 +72,7 @@ impl DeckListView {
                                             deck_name: deck.name.clone(),
                                             card_index: 0,
                                             revealed: false,
+                                            shuffled_indices: shuffled_indices(total),
                                         };
                                     }
                                     if ui
@@ -114,11 +99,6 @@ impl DeckListView {
                                             deck_name: deck.name.clone(),
                                         };
                                     }
-                                    if ui.small_button("Deck Stats").clicked() {
-                                        *view = View::DeckStats {
-                                            deck_name: deck.name.clone(),
-                                        };
-                                    }
                                 });
                             });
                         });
@@ -130,4 +110,24 @@ impl DeckListView {
                 });
         });
     }
+}
+
+/// Build a shuffled index list for a deck with `count` cards.
+fn shuffled_indices(count: usize) -> Vec<usize> {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut indices: Vec<usize> = (0..count).collect();
+    let mut hasher = DefaultHasher::new();
+    std::time::Instant::now().hash(&mut hasher);
+    let mut seed = hasher.finish();
+    for i in (1..indices.len()).rev() {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        #[expect(clippy::cast_possible_truncation)]
+        let j = (seed as usize) % (i + 1);
+        indices.swap(i, j);
+    }
+    indices
 }

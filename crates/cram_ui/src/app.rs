@@ -17,6 +17,7 @@ pub enum View {
         deck_name: String,
         card_index: usize,
         revealed: bool,
+        shuffled_indices: Vec<usize>,
     },
     Editor {
         deck_name: String,
@@ -31,13 +32,9 @@ pub enum View {
     ExportCsv {
         deck_name: String,
     },
-    DeckStats {
-        deck_name: String,
-    },
     SessionSummary {
         deck_name: String,
         cards_reviewed: u32,
-        correct: u32,
         elapsed_secs: u64,
     },
 }
@@ -55,19 +52,8 @@ pub struct CramApp {
     selected_cards: std::collections::HashSet<usize>,
     session_start: Option<std::time::Instant>,
     session_reviewed: u32,
-    session_correct: u32,
-    undo_state: Option<UndoState>,
     preview_debounce: PreviewDebounce,
     fullscreen_preview: Option<String>,
-}
-
-#[derive(Clone)]
-pub struct UndoState {
-    pub card_index: usize,
-    pub interval: f64,
-    pub ease: f64,
-    pub reps: u32,
-    pub due: chrono::NaiveDate,
 }
 
 #[derive(Default)]
@@ -126,12 +112,9 @@ impl CramApp {
             selected_cards: std::collections::HashSet::new(),
             session_start: None,
             session_reviewed: 0,
-            session_correct: 0,
-            undo_state: None,
             preview_debounce: PreviewDebounce::default(),
             fullscreen_preview: None,
         };
-        // Seed sample deck if nothing exists
         if app.decks.is_empty() {
             app.seed_sample_deck();
         }
@@ -261,87 +244,6 @@ impl CramApp {
             }
         });
     }
-
-    fn show_deck_stats(ui: &mut egui::Ui, decks: &[Deck], deck_name: &str) {
-        let Some(deck) = decks.iter().find(|d| d.name == deck_name) else {
-            ui.label("Deck not found.");
-            return;
-        };
-
-        ui.vertical(|ui| {
-            ui.add_space(16.0);
-            ui.heading(format!("Statistics: {deck_name}"));
-            ui.separator();
-            ui.add_space(8.0);
-
-            let total = deck.cards.len();
-            let due = deck.due_count();
-            let avg_ease = if total > 0 {
-                #[expect(clippy::cast_precision_loss)]
-                let avg = deck.cards.iter().map(|c| c.ease).sum::<f64>() / total as f64;
-                avg
-            } else {
-                0.0
-            };
-
-            ui.label(format!("Total cards: {total}"));
-            ui.label(format!("Due today: {due}"));
-            ui.label(format!("Average ease: {avg_ease:.2}"));
-            ui.add_space(12.0);
-
-            ui.heading("Cards by interval");
-            ui.add_space(4.0);
-
-            let buckets = [
-                ("New (0-1d)", 0.0_f64, 1.5),
-                ("Learning (1-7d)", 1.5, 7.5),
-                ("Young (7-21d)", 7.5, 21.5),
-                ("Mature (21-90d)", 21.5, 90.5),
-                ("Expert (90d+)", 90.5, f64::MAX),
-            ];
-
-            let max_count = buckets
-                .iter()
-                .map(|(_, lo, hi)| {
-                    deck.cards
-                        .iter()
-                        .filter(|c| c.interval >= *lo && c.interval < *hi)
-                        .count()
-                })
-                .max()
-                .unwrap_or(1)
-                .max(1);
-
-            for (label, lo, hi) in buckets {
-                let count = deck
-                    .cards
-                    .iter()
-                    .filter(|c| c.interval >= lo && c.interval < hi)
-                    .count();
-                #[expect(clippy::cast_precision_loss)]
-                let bar_frac = count as f32 / max_count as f32;
-                ui.horizontal(|ui| {
-                    ui.label(format!("{label:20}"));
-                    let bar_width = (ui.available_width() - 60.0).max(50.0);
-                    let (rect, _) =
-                        ui.allocate_exact_size(egui::vec2(bar_width, 16.0), egui::Sense::hover());
-                    let fill_rect = egui::Rect::from_min_size(
-                        rect.min,
-                        egui::vec2(rect.width() * bar_frac, rect.height()),
-                    );
-                    ui.painter()
-                        .rect_filled(fill_rect, 2.0, egui::Color32::from_rgb(50, 130, 220));
-                    ui.painter().rect_stroke(
-                        rect,
-                        2.0,
-                        egui::Stroke::new(1.0, ui.visuals().text_color()),
-                        egui::StrokeKind::Outside,
-                    );
-                    ui.label(count.to_string());
-                });
-            }
-        });
-    }
 }
 
 impl eframe::App for CramApp {
@@ -424,27 +326,27 @@ impl eframe::App for CramApp {
                     deck_name,
                     mut card_index,
                     mut revealed,
+                    shuffled_indices,
                 } => {
                     StudyView::show(
                         ui,
                         ctx,
-                        &mut self.decks,
+                        &self.decks,
                         &deck_name,
                         &mut card_index,
                         &mut revealed,
-                        &self.store,
                         &mut self.texture_cache,
                         &mut self.view,
                         &mut self.session_reviewed,
-                        &mut self.session_correct,
                         &mut self.session_start,
-                        &mut self.undo_state,
+                        &shuffled_indices,
                     );
                     if matches!(self.view, View::Study { .. }) {
                         self.view = View::Study {
                             deck_name,
                             card_index,
                             revealed,
+                            shuffled_indices,
                         };
                     }
                 }
@@ -489,13 +391,9 @@ impl eframe::App for CramApp {
                 View::ExportCsv { deck_name } => {
                     Self::show_export_csv(ui, &self.decks, &deck_name, &mut self.csv_buffer);
                 }
-                View::DeckStats { deck_name } => {
-                    Self::show_deck_stats(ui, &self.decks, &deck_name);
-                }
                 View::SessionSummary {
                     deck_name,
                     cards_reviewed,
-                    correct,
                     elapsed_secs,
                 } => {
                     ui.vertical_centered(|ui| {
@@ -507,12 +405,6 @@ impl eframe::App for CramApp {
                                 ui.add_space(16.0);
                                 ui.label(format!("Deck: {deck_name}"));
                                 ui.label(format!("Cards reviewed: {cards_reviewed}"));
-                                let retention = if cards_reviewed > 0 {
-                                    correct as f64 / cards_reviewed as f64 * 100.0
-                                } else {
-                                    0.0
-                                };
-                                ui.label(format!("Retention: {retention:.0}%"));
                                 let mins = elapsed_secs / 60;
                                 let secs = elapsed_secs % 60;
                                 ui.label(format!("Time: {mins}m {secs}s"));

@@ -1276,7 +1276,6 @@ dependencies = [
 name = "cram_ui"
 version = "0.0.0"
 dependencies = [
- "chrono",
  "cram_core",
  "cram_render",
  "cram_store",
