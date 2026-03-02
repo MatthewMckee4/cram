@@ -42,4 +42,24 @@ mod tests {
         assert_eq!(card.reps, 0);
         assert!(card.tags.is_empty());
     }
+
+    #[test]
+    fn new_card_is_due_today() {
+        let card = Card::new("Q", "A");
+        assert_eq!(card.due, Utc::now().date_naive());
+    }
+
+    #[test]
+    fn new_card_has_unique_id() {
+        let a = Card::new("Q", "A");
+        let b = Card::new("Q", "A");
+        assert_ne!(a.id, b.id);
+    }
+
+    #[test]
+    fn new_card_stores_front_and_back() {
+        let card = Card::new("What is Rust?", "A systems language");
+        assert_eq!(card.front, "What is Rust?");
+        assert_eq!(card.back, "A systems language");
+    }
 }

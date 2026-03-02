@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*", "it"]
+members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
@@ -18,6 +18,7 @@ cram_ui      = { path = "crates/cram_ui" }
 
 anyhow        = "1"
 chrono        = { version = "0.4", features = ["serde"] }
+clap          = { version = "4", features = ["derive"] }
 criterion     = { version = "0.8", features = ["html_reports"] }
 dirs          = "6"
 eframe        = { version = "0.33", features = ["default"] }
