@@ -21,7 +21,6 @@ anyhow = "1"
 axoupdater = { version = "0.10", features = ["blocking"] }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
-criterion = { version = "0.8", features = ["html_reports"] }
 dirs = "6"
 eframe = { version = "0.33", features = ["default"] }
 egui = "0.33"
