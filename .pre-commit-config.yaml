@@ -35,11 +35,11 @@ repos:
       - id: mdformat
         priority: 10
 
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.46.0
-    hooks:
-      - id: markdownlint-fix
-        priority: 20
+  # - repo: https://github.com/igorshubovych/markdownlint-cli
+  #   rev: v0.46.0
+  #   hooks:
+  #     - id: markdownlint-fix
+  #       priority: 20
 
   - repo: https://github.com/doublify/pre-commit-rust
     rev: v1.0
