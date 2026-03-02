@@ -1,0 +1,12 @@
+[package]
+name = "cram_it"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+
+[dependencies]
+cram_core = { path = "../crates/cram_core" }
+cram_store = { path = "../crates/cram_store" }
+cram_render = { path = "../crates/cram_render" }
+chrono = { workspace = true }
+tempfile = { workspace = true }
