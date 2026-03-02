@@ -13,3 +13,10 @@ typst.workspace = true
 typst-assets.workspace = true
 typst-kit.workspace = true
 typst-render.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "render_throughput"
+harness = false
