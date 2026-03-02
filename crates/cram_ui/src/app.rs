@@ -57,6 +57,7 @@ pub struct CramApp {
     session_correct: u32,
     undo_state: Option<UndoState>,
     preview_debounce: PreviewDebounce,
+    fullscreen_preview: Option<String>,
 }
 
 #[derive(Clone)]
@@ -127,6 +128,7 @@ impl CramApp {
             session_correct: 0,
             undo_state: None,
             preview_debounce: PreviewDebounce::default(),
+            fullscreen_preview: None,
         };
         // Seed sample deck if nothing exists
         if app.decks.is_empty() {
@@ -433,6 +435,7 @@ impl eframe::App for CramApp {
                         &mut self.texture_cache,
                         &mut self.selected_cards,
                         &mut self.preview_debounce,
+                        &mut self.fullscreen_preview,
                     );
                     self.view = View::Editor {
                         deck_name,
@@ -516,5 +519,79 @@ impl eframe::App for CramApp {
                 }
             }
         });
+
+        if self.fullscreen_preview.is_some() {
+            self.show_fullscreen_preview(ctx);
+        }
     }
+}
+
+impl CramApp {
+    fn show_fullscreen_preview(&mut self, ctx: &Context) {
+        let source = match &self.fullscreen_preview {
+            Some(s) => s.clone(),
+            None => return,
+        };
+
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.fullscreen_preview = None;
+            return;
+        }
+
+        let screen = ctx.content_rect();
+        egui::Area::new(egui::Id::new("fullscreen_preview_bg"))
+            .fixed_pos(screen.min)
+            .show(ctx, |ui| {
+                ui.painter()
+                    .rect_filled(screen, 0.0, egui::Color32::from_black_alpha(180));
+            });
+
+        egui::Window::new("Card Preview")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .collapsible(false)
+            .resizable(false)
+            .fixed_size(egui::vec2(screen.width() * 0.85, screen.height() * 0.85))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.heading("Full-Screen Preview");
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("Close [Esc]").clicked() {
+                            self.fullscreen_preview = None;
+                        }
+                    });
+                });
+                ui.separator();
+
+                egui::ScrollArea::both().show(ui, |ui| {
+                    let key = format!("fullscreen-{source}");
+                    match get_or_render(ctx, &key, &source, &mut self.texture_cache) {
+                        Ok(tex) => {
+                            ui.add(egui::Image::new(&tex).max_width(ui.available_width()));
+                        }
+                        Err(err) => {
+                            ui.colored_label(egui::Color32::RED, format!("Render error: {err}"));
+                        }
+                    }
+                });
+            });
+    }
+}
+
+fn get_or_render(
+    ctx: &Context,
+    key: &str,
+    source: &str,
+    cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
+) -> Result<egui::TextureHandle, String> {
+    if let Some(h) = cache.get(key) {
+        return Ok(h.clone());
+    }
+    let png = cram_render::render(source).map_err(|e| e.to_string())?;
+    let img = image::load_from_memory(&png).map_err(|e| e.to_string())?;
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    let ci = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &rgba);
+    let handle = ctx.load_texture(key, ci, egui::TextureOptions::LINEAR);
+    cache.insert(key.to_string(), handle.clone());
+    Ok(handle)
 }

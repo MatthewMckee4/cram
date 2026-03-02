@@ -19,6 +19,7 @@ impl EditorView {
         texture_cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
         selected_cards: &mut std::collections::HashSet<usize>,
         preview_debounce: &mut PreviewDebounce,
+        fullscreen_preview: &mut Option<String>,
     ) {
         let Some(deck) = decks.iter_mut().find(|d| d.name == deck_name) else {
             ui.label("Deck not found.");
@@ -160,7 +161,13 @@ impl EditorView {
                                     // Right column: preview
                                     ui.vertical(|ui| {
                                         ui.set_max_width(col_w);
-                                        ui.label("Preview:");
+                                        ui.horizontal(|ui| {
+                                            ui.label("Preview:");
+                                            if ui.small_button("Full Screen").clicked() {
+                                                *fullscreen_preview =
+                                                    Some(deck.cards[i].front.clone());
+                                            }
+                                        });
                                         let front = deck.cards[i].front.clone();
                                         let source = preview_debounce.render_source(i, &front, ctx);
                                         let key = format!("editor-{i}-{source}");
