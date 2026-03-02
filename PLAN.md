@@ -24,7 +24,7 @@ Mark items ✅ when done. Add new items freely.
 ## Phase 3 — Typst Excellence
 - [ ] Syntax highlighting in the Typst editor (using egui's code_editor or similar)
 - [ ] Auto-reload preview on keystroke with 300ms debounce
-- [ ] Error display when Typst fails to compile
+- [x] Error display when Typst fails to compile
 - [ ] Full-screen card preview mode
 - [ ] Custom Typst preamble per deck (shared imports, macros)
 
