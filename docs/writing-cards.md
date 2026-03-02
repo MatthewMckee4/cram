@@ -59,6 +59,7 @@ Then on any card you can use `#highlight[important text]` without re-defining th
 ## Syntax highlighting
 
 The card editor provides Typst-aware syntax highlighting:
+
 - **Purple:** keywords like `#set`, `#let`, `#show`, `#import`
 - **Blue:** function calls like `#text`, `#image`, `#table`
 - **Green:** string literals

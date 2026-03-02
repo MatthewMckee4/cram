@@ -6,6 +6,7 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+chrono.workspace = true
 cram_core.workspace = true
 cram_render.workspace = true
 cram_store.workspace = true
@@ -13,4 +14,3 @@ eframe.workspace = true
 egui.workspace = true
 image.workspace = true
 tracing.workspace = true
-chrono.workspace = true
