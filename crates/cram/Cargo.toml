@@ -13,7 +13,6 @@ name = "cram"
 path = "src/main.rs"
 
 [dependencies]
-anstream.workspace = true
 anyhow.workspace = true
 axoupdater.workspace = true
 clap.workspace = true
