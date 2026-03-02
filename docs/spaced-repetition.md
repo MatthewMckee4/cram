@@ -28,9 +28,9 @@ The ease factor is clamped to the range [1.3, 2.5], preventing cards from becomi
 A new card with ease 2.5:
 
 1. **Day 1:** Review, rate Good -> interval becomes 2.5 days
-2. **Day 3:** Review, rate Good -> interval becomes 6.25 days
-3. **Day 9:** Review, rate Easy -> interval becomes ~20 days, ease rises to 2.5
-4. **Day 29:** Review, rate Hard -> interval becomes ~24 days, ease drops to 2.35
+1. **Day 3:** Review, rate Good -> interval becomes 6.25 days
+1. **Day 9:** Review, rate Easy -> interval becomes ~20 days, ease rises to 2.5
+1. **Day 29:** Review, rate Hard -> interval becomes ~24 days, ease drops to 2.35
 
 If you rate **Again** at any point, the interval resets to 1 day and you start over.
 

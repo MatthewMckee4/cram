@@ -9,8 +9,6 @@ on:
 
 permissions: {}
 
-env:
-
 jobs:
   determine_changes:
     name: "determine changes"
