@@ -2,6 +2,8 @@ use cram_core::{Card, Deck};
 use cram_store::Store;
 use egui::{Context, Ui};
 
+use crate::highlight::typst_layout_job;
+
 pub struct EditorView;
 
 impl EditorView {
@@ -105,20 +107,39 @@ impl EditorView {
                                     // Left column: editors
                                     ui.vertical(|ui| {
                                         ui.set_max_width(col_w);
+                                        let dark = ui.visuals().dark_mode;
+                                        let mut front_layouter = |ui: &egui::Ui,
+                                                                    text: &dyn egui::TextBuffer,
+                                                                    wrap_width: f32| {
+                                            let mut job =
+                                                typst_layout_job(text.as_str(), dark);
+                                            job.wrap.max_width = wrap_width;
+                                            ui.fonts_mut(|f| f.layout_job(job))
+                                        };
                                         ui.label("Front (Typst):");
                                         ui.add(
                                             egui::TextEdit::multiline(&mut deck.cards[i].front)
                                                 .font(egui::TextStyle::Monospace)
                                                 .desired_rows(5)
-                                                .desired_width(col_w),
+                                                .desired_width(col_w)
+                                                .layouter(&mut front_layouter),
                                         );
                                         ui.add_space(4.0);
+                                        let mut back_layouter = |ui: &egui::Ui,
+                                                                   text: &dyn egui::TextBuffer,
+                                                                   wrap_width: f32| {
+                                            let mut job =
+                                                typst_layout_job(text.as_str(), dark);
+                                            job.wrap.max_width = wrap_width;
+                                            ui.fonts_mut(|f| f.layout_job(job))
+                                        };
                                         ui.label("Back (Typst):");
                                         ui.add(
                                             egui::TextEdit::multiline(&mut deck.cards[i].back)
                                                 .font(egui::TextStyle::Monospace)
                                                 .desired_rows(5)
-                                                .desired_width(col_w),
+                                                .desired_width(col_w)
+                                                .layouter(&mut back_layouter),
                                         );
                                         ui.add_space(4.0);
                                         ui.label("Tags (comma-separated):");
