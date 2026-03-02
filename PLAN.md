@@ -30,6 +30,6 @@ Mark items ✅ when done. Add new items freely.
 
 ## Phase 4 — Quality
 - [x] Integration tests in it/ directory
-- [ ] Benchmark: render throughput (typst compile + rasterise)
+- [x] Benchmark: render throughput (typst compile + rasterise)
 - [ ] CI workflow (.github/workflows/ci.yml)
 - [ ] Docs: fill out all zensical pages with real content
