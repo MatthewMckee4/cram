@@ -3,7 +3,10 @@ use cram_store::Store;
 use eframe::CreationContext;
 use egui::Context;
 
-use crate::{deck_list::DeckListView, editor::EditorView, stats::StatsView, study::StudyView};
+use crate::{
+    deck_list::DeckListView, editor::EditorView, search::SearchView, stats::StatsView,
+    study::StudyView,
+};
 
 #[derive(Default, Clone)]
 pub enum View {
@@ -20,6 +23,7 @@ pub enum View {
     },
     NewDeck,
     Stats,
+    Search,
 }
 
 pub struct CramApp {
@@ -30,6 +34,7 @@ pub struct CramApp {
     texture_cache: std::collections::HashMap<String, egui::TextureHandle>,
     error_message: Option<String>,
     dark_mode: bool,
+    search_query: String,
 }
 
 impl CramApp {
@@ -44,6 +49,7 @@ impl CramApp {
             texture_cache: std::collections::HashMap::new(),
             error_message: None,
             dark_mode: true,
+            search_query: String::new(),
         };
         // Seed sample deck if nothing exists
         if app.decks.is_empty() {
@@ -94,6 +100,9 @@ impl eframe::App for CramApp {
                 }
                 if ui.button("Stats").clicked() {
                     self.view = View::Stats;
+                }
+                if ui.button("Search").clicked() {
+                    self.view = View::Search;
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let label = if self.dark_mode { "Light" } else { "Dark" };
@@ -174,6 +183,9 @@ impl eframe::App for CramApp {
                 }
                 View::Stats => {
                     StatsView::show(ui, &self.decks);
+                }
+                View::Search => {
+                    SearchView::show(ui, &self.decks, &mut self.search_query);
                 }
                 View::NewDeck => {
                     ui.vertical_centered(|ui| {
