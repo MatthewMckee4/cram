@@ -131,12 +131,15 @@ impl eframe::App for CramApp {
                         &mut revealed,
                         &self.store,
                         &mut self.texture_cache,
+                        &mut self.view,
                     );
-                    self.view = View::Study {
-                        deck_name,
-                        card_index,
-                        revealed,
-                    };
+                    if matches!(self.view, View::Study { .. }) {
+                        self.view = View::Study {
+                            deck_name,
+                            card_index,
+                            revealed,
+                        };
+                    }
                 }
                 View::Editor {
                     deck_name,

@@ -2,10 +2,12 @@ use cram_core::{Deck, Rating, review_card};
 use cram_store::Store;
 use egui::{Context, Ui};
 
+use crate::app::View;
+
 pub struct StudyView;
 
 impl StudyView {
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
         ctx: &Context,
@@ -15,7 +17,13 @@ impl StudyView {
         revealed: &mut bool,
         store: &Store,
         texture_cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
+        view: &mut View,
     ) {
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            *view = View::DeckList;
+            return;
+        }
+
         let Some(deck) = decks.iter_mut().find(|d| d.name == deck_name) else {
             ui.label("Deck not found.");
             return;
@@ -96,25 +104,47 @@ impl StudyView {
             } else {
                 ui.label("How well did you recall it?");
                 ui.add_space(8.0);
+
+                let key_rating = ui.input(|i| {
+                    if i.key_pressed(egui::Key::Num1) {
+                        Some(Rating::Again)
+                    } else if i.key_pressed(egui::Key::Num2) {
+                        Some(Rating::Hard)
+                    } else if i.key_pressed(egui::Key::Num3) {
+                        Some(Rating::Good)
+                    } else if i.key_pressed(egui::Key::Num4) {
+                        Some(Rating::Easy)
+                    } else {
+                        None
+                    }
+                });
+
+                let mut selected_rating = key_rating;
+
                 ui.horizontal(|ui| {
                     let ratings = [
-                        (Rating::Again, egui::Color32::from_rgb(220, 50, 50)),
-                        (Rating::Hard, egui::Color32::from_rgb(220, 130, 50)),
-                        (Rating::Good, egui::Color32::from_rgb(50, 150, 50)),
-                        (Rating::Easy, egui::Color32::from_rgb(50, 100, 220)),
+                        (Rating::Again, egui::Color32::from_rgb(220, 50, 50), "1"),
+                        (Rating::Hard, egui::Color32::from_rgb(220, 130, 50), "2"),
+                        (Rating::Good, egui::Color32::from_rgb(50, 150, 50), "3"),
+                        (Rating::Easy, egui::Color32::from_rgb(50, 100, 220), "4"),
                     ];
-                    for (rating, color) in ratings {
-                        let label = egui::RichText::new(rating.label()).color(egui::Color32::WHITE);
+                    for (rating, color, key) in ratings {
+                        let text = format!("{} [{}]", rating.label(), key);
+                        let label = egui::RichText::new(text).color(egui::Color32::WHITE);
                         if ui.add(egui::Button::new(label).fill(color)).clicked() {
-                            review_card(&mut deck.cards[card_pos], rating);
-                            if let Err(e) = store.save_deck(deck) {
-                                tracing::warn!("save failed: {e}");
-                            }
-                            *card_index = (*card_index + 1) % due_indices.len().max(1);
-                            *revealed = false;
+                            selected_rating = Some(rating);
                         }
                     }
                 });
+
+                if let Some(rating) = selected_rating {
+                    review_card(&mut deck.cards[card_pos], rating);
+                    if let Err(e) = store.save_deck(deck) {
+                        tracing::warn!("save failed: {e}");
+                    }
+                    *card_index = (*card_index + 1) % due_indices.len().max(1);
+                    *revealed = false;
+                }
             }
         });
     }
