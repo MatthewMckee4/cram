@@ -11,7 +11,7 @@ impl StudyView {
     pub fn show(
         ui: &mut Ui,
         ctx: &Context,
-        decks: &[Deck],
+        decks: &[&Deck],
         deck_name: &str,
         card_index: &mut usize,
         revealed: &mut bool,

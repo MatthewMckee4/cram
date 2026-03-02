@@ -6,7 +6,7 @@ use crate::style;
 pub struct SearchView;
 
 impl SearchView {
-    pub fn show(ui: &mut Ui, decks: &[Deck], query: &mut String) {
+    pub fn show(ui: &mut Ui, decks: &[&Deck], query: &mut String) {
         ui.vertical(|ui| {
             ui.add_space(16.0);
             ui.heading("Search Cards");

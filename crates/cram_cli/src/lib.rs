@@ -49,6 +49,25 @@ pub enum DecksCommand {
     List,
     /// Print the decks directory path
     Dir,
+    /// Create a new empty deck at a given path
+    New {
+        /// Path for the new deck file (must end in .toml)
+        path: PathBuf,
+    },
+    /// Link an external file or directory as a deck source
+    Link {
+        /// Path to the file or directory to link
+        path: PathBuf,
+    },
+    /// Unlink a previously linked deck source
+    Unlink {
+        /// Path to the file or directory to unlink
+        path: PathBuf,
+    },
+    /// List all linked sources
+    Sources,
+    /// Sync all linked sources (git pull)
+    Sync,
 }
 
 #[derive(Subcommand)]

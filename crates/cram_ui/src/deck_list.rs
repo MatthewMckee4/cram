@@ -1,5 +1,5 @@
 use cram_core::Deck;
-use cram_store::Store;
+use cram_store::DeckSource;
 use egui::Ui;
 
 use crate::app::View;
@@ -10,10 +10,9 @@ pub struct DeckListView;
 impl DeckListView {
     pub fn show(
         ui: &mut Ui,
-        decks: &[Deck],
+        decks: &[(&Deck, &DeckSource)],
         view: &mut View,
         new_deck_name: &mut String,
-        _store: &Store,
     ) {
         ui.vertical(|ui| {
             ui.add_space(16.0);
@@ -50,7 +49,7 @@ impl DeckListView {
                 .num_columns(3)
                 .spacing([16.0, 16.0])
                 .show(ui, |ui| {
-                    for (i, deck) in decks.iter().enumerate() {
+                    for (i, (deck, source)) in decks.iter().enumerate() {
                         let total = deck.cards().len();
 
                         style::card_frame(ui).show(ui, |ui| {
@@ -61,6 +60,14 @@ impl DeckListView {
                                     ui.label(
                                         egui::RichText::new(deck.description())
                                             .italics()
+                                            .color(ui.visuals().weak_text_color()),
+                                    );
+                                }
+                                if let DeckSource::Linked(path) = source {
+                                    let short = shorten_home(path);
+                                    ui.label(
+                                        egui::RichText::new(short)
+                                            .small()
                                             .color(ui.visuals().weak_text_color()),
                                     );
                                 }
@@ -118,4 +125,13 @@ fn shuffled_indices(count: usize) -> Vec<usize> {
         indices.swap(i, j);
     }
     indices
+}
+
+fn shorten_home(path: &std::path::Path) -> String {
+    if let Some(home) = dirs::home_dir()
+        && let Ok(rest) = path.strip_prefix(&home)
+    {
+        return format!("~/{}", rest.display());
+    }
+    path.display().to_string()
 }
