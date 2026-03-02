@@ -17,15 +17,34 @@ fn decks_list_empty() {
 #[test]
 fn decks_dir_prints_path() {
     let ctx = TestContext::new();
-    let output = ctx
-        .command()
-        .args(["decks", "dir"])
-        .output()
-        .expect("spawn");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let path = std::path::Path::new(stdout.trim());
-    assert!(
-        path.ends_with("cram/decks"),
-        "expected path ending with cram/decks, got: {stdout}"
-    );
+
+    #[cfg(target_os = "linux")]
+    cram_snapshot!(ctx.filters(), ctx.command().args(["decks", "dir"]), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    [TEMP]/data/cram/decks
+
+    ----- stderr -----
+    ");
+
+    #[cfg(target_os = "macos")]
+    cram_snapshot!(ctx.filters(), ctx.command().args(["decks", "dir"]), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    [TEMP]Library/Application Support/cram/decks
+
+    ----- stderr -----
+    ");
+
+    #[cfg(target_os = "windows")]
+    cram_snapshot!(ctx.filters(), ctx.command().args(["decks", "dir"]), @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    [TEMP]/AppData/Roaming/cram/decks
+
+    ----- stderr -----
+    ");
 }
