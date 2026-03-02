@@ -1,6 +1,8 @@
 use cram_core::Deck;
 use egui::Ui;
 
+use crate::style;
+
 pub struct SearchView;
 
 impl SearchView {
@@ -44,14 +46,10 @@ impl SearchView {
                     ui.separator();
 
                     for card in matches {
-                        egui::Frame::new()
-                            .fill(ui.visuals().extreme_bg_color)
-                            .corner_radius(6.0)
-                            .inner_margin(8.0)
-                            .show(ui, |ui| {
-                                ui.label(egui::RichText::new(&card.front).strong());
-                                ui.label(&card.back);
-                            });
+                        style::card_frame(ui).inner_margin(12.0).show(ui, |ui| {
+                            ui.label(egui::RichText::new(&card.front).strong());
+                            ui.label(&card.back);
+                        });
                         ui.add_space(4.0);
                     }
                     ui.add_space(8.0);

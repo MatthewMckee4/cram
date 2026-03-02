@@ -3,14 +3,14 @@ use cram_store::Store;
 
 #[test]
 fn render_card_front_produces_png() {
-    let bytes = cram_render::render("= Question\nWhat is Rust?").expect("render");
+    let bytes = cram_render::render("= Question\nWhat is Rust?", false).expect("render");
     assert!(bytes.len() > 100);
     assert_eq!(&bytes[..4], b"\x89PNG");
 }
 
 #[test]
 fn render_card_with_math() {
-    let bytes = cram_render::render("Euler: $e^{i pi} + 1 = 0$").expect("render");
+    let bytes = cram_render::render("Euler: $e^{i pi} + 1 = 0$", false).expect("render");
     assert_eq!(&bytes[..4], b"\x89PNG");
 }
 
@@ -19,13 +19,13 @@ fn render_with_preamble() {
     let preamble = "#set text(size: 16pt)";
     let body = "= Hello\nWorld";
     let source = format!("{preamble}\n{body}");
-    let bytes = cram_render::render(&source).expect("render with preamble");
+    let bytes = cram_render::render(&source, false).expect("render with preamble");
     assert_eq!(&bytes[..4], b"\x89PNG");
 }
 
 #[test]
 fn render_invalid_typst_returns_error() {
-    let result = cram_render::render("#nonexistent-func()");
+    let result = cram_render::render("#nonexistent-func()", false);
     assert!(result.is_err());
 }
 
@@ -44,7 +44,15 @@ fn end_to_end_save_render_cycle() {
 
     let loaded = store.load_deck("RenderTest").expect("load");
     let source = format!("{}\n{}", loaded.preamble, loaded.cards[0].front);
-    let bytes = cram_render::render(&source).expect("render");
+    let bytes = cram_render::render(&source, false).expect("render");
     assert_eq!(&bytes[..4], b"\x89PNG");
     assert!(bytes.len() > 100);
+}
+
+#[test]
+fn render_dark_mode_produces_png() {
+    let bytes =
+        cram_render::render("= Dark Mode\nVisible on dark background", true).expect("dark render");
+    assert!(bytes.len() > 100);
+    assert_eq!(&bytes[..4], b"\x89PNG");
 }

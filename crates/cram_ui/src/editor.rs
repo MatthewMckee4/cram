@@ -4,6 +4,7 @@ use egui::{Context, Ui};
 
 use crate::app::PreviewDebounce;
 use crate::highlight::typst_layout_job;
+use crate::style;
 
 pub struct EditorView;
 
@@ -30,7 +31,7 @@ impl EditorView {
             ui.horizontal(|ui| {
                 ui.heading(format!("Edit: {deck_name}"));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("+ Add Card").clicked() {
+                    if ui.add(style::accent_button("+ Add Card")).clicked() {
                         deck.cards.push(Card::new("Front", "Back"));
                         let _ = store.save_deck(deck);
                     }
@@ -56,7 +57,10 @@ impl EditorView {
                 }
                 if !selected_cards.is_empty()
                     && ui
-                        .button(format!("Delete Selected ({})", selected_cards.len()))
+                        .add(style::destructive_button(&format!(
+                            "Delete Selected ({})",
+                            selected_cards.len()
+                        )))
                         .clicked()
                 {
                     let mut indices: Vec<usize> = selected_cards.iter().copied().collect();
@@ -202,7 +206,14 @@ impl EditorView {
                                             preview_debounce.render_source(i, &front, ctx);
                                         let source = with_preamble(&deck.preamble, &debounced);
                                         let key = format!("editor-{i}-{source}");
-                                        match get_or_render(ctx, &key, &source, texture_cache) {
+                                        let dark_mode = ui.visuals().dark_mode;
+                                        match get_or_render(
+                                            ctx,
+                                            &key,
+                                            &source,
+                                            texture_cache,
+                                            dark_mode,
+                                        ) {
                                             Ok(tex) => {
                                                 ui.add(egui::Image::new(&tex).max_width(col_w));
                                             }
@@ -218,11 +229,11 @@ impl EditorView {
 
                                 ui.add_space(4.0);
                                 ui.horizontal(|ui| {
-                                    if ui.button("Save").clicked() {
+                                    if ui.add(style::accent_button("Save")).clicked() {
                                         save_now = true;
                                         texture_cache.clear();
                                     }
-                                    if ui.button("Delete").clicked() {
+                                    if ui.add(style::destructive_button("Delete")).clicked() {
                                         to_delete = Some(i);
                                     }
                                 });
@@ -256,11 +267,12 @@ fn get_or_render(
     key: &str,
     source: &str,
     cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
+    dark_mode: bool,
 ) -> Result<egui::TextureHandle, String> {
     if let Some(h) = cache.get(key) {
         return Ok(h.clone());
     }
-    let png = cram_render::render(source).map_err(|e| e.to_string())?;
+    let png = cram_render::render(source, dark_mode).map_err(|e| e.to_string())?;
     let img = image::load_from_memory(&png).map_err(|e| e.to_string())?;
     let rgba = img.to_rgba8();
     let (w, h) = rgba.dimensions();

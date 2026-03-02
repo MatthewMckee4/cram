@@ -3,7 +3,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 fn bench_heading(c: &mut Criterion) {
     c.bench_function("render_heading", |b| {
         b.iter(|| {
-            cram_render::render("= Hello World").expect("render");
+            cram_render::render("= Hello World", false).expect("render");
         });
     });
 }
@@ -11,7 +11,7 @@ fn bench_heading(c: &mut Criterion) {
 fn bench_body_text(c: &mut Criterion) {
     c.bench_function("render_body_text", |b| {
         b.iter(|| {
-            cram_render::render("This is *bold* and _italic_ text with some content.")
+            cram_render::render("This is *bold* and _italic_ text with some content.", false)
                 .expect("render");
         });
     });
@@ -20,7 +20,7 @@ fn bench_body_text(c: &mut Criterion) {
 fn bench_math(c: &mut Criterion) {
     c.bench_function("render_math", |b| {
         b.iter(|| {
-            cram_render::render("$ integral_0^infinity e^(-x^2) d x = sqrt(pi) / 2 $")
+            cram_render::render("$ integral_0^infinity e^(-x^2) d x = sqrt(pi) / 2 $", false)
                 .expect("render");
         });
     });
@@ -44,7 +44,7 @@ This connects five fundamental constants:
 ";
     c.bench_function("render_complex_card", |b| {
         b.iter(|| {
-            cram_render::render(source).expect("render");
+            cram_render::render(source, false).expect("render");
         });
     });
 }
