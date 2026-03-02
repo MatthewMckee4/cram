@@ -18,8 +18,8 @@ cram_ui      = { path = "crates/cram_ui" }
 
 anyhow        = "1"
 chrono        = { version = "0.4", features = ["serde"] }
-criterion     = { version = "0.5", features = ["html_reports"] }
-dirs          = "5"
+criterion     = { version = "0.8", features = ["html_reports"] }
+dirs          = "6"
 eframe        = { version = "0.33", features = ["default"] }
 egui          = "0.33"
 egui_extras   = { version = "0.33", features = ["image"] }
@@ -28,7 +28,7 @@ serde         = { version = "1", features = ["derive"] }
 serde_json    = "1"
 tempfile      = "3"
 thiserror     = "2"
-toml          = "0.8"
+toml          = "1.0"
 tracing       = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 typst         = "0.14"
