@@ -10,7 +10,7 @@ Mark items ✅ when done. Add new items freely.
 - [x] Dark/light theme toggle in settings
 - [x] Search cards across all decks
 - [x] Deck description field visible in deck list
-- [ ] Empty state illustration when no decks
+- [x] Empty state illustration when no decks
 
 ## Phase 2 — Power Features
 - [ ] Import cards from CSV (front,back format)
