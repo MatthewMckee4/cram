@@ -9,7 +9,7 @@ Mark items ✅ when done. Add new items freely.
 - [x] Keyboard shortcuts: Space=reveal, 1/2/3/4=rate, Esc=back
 - [x] Dark/light theme toggle in settings
 - [x] Search cards across all decks
-- [ ] Deck description field visible in deck list
+- [x] Deck description field visible in deck list
 - [ ] Empty state illustration when no decks
 
 ## Phase 2 — Power Features
