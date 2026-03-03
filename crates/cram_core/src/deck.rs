@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Card;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Deck {
     name: String,
     description: String,
