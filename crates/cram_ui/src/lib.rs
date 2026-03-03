@@ -7,5 +7,6 @@ mod sources;
 mod study;
 mod style;
 mod theme;
+mod ui_state;
 
 pub use app::CramApp;

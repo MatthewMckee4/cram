@@ -1,6 +1,8 @@
 use egui::{Color32, Stroke, Visuals};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Theme {
     #[default]
     Dark,
@@ -116,4 +118,14 @@ struct Palette {
     faint: Color32,
     extreme: Color32,
     border: Color32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_is_dark() {
+        assert_eq!(Theme::default(), Theme::Dark);
+    }
 }

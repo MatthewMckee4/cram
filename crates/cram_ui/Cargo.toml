@@ -6,6 +6,7 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+anyhow.workspace = true
 cram_core.workspace = true
 cram_render.workspace = true
 cram_store.workspace = true
@@ -14,4 +15,9 @@ eframe.workspace = true
 egui.workspace = true
 image.workspace = true
 rfd.workspace = true
+serde.workspace = true
+toml.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

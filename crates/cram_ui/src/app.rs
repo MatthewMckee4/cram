@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use cram_core::Deck;
 use cram_store::{DeckSource, MultiStore, Store};
+
+use crate::ui_state::UiState;
 use eframe::CreationContext;
 use egui::Context;
 
@@ -52,6 +54,7 @@ pub struct CramApp {
     sync_statuses: Vec<SourceStatus>,
     save_feedback: Option<std::time::Instant>,
     confirm_delete_deck: Option<String>,
+    last_deck: Option<String>,
 }
 
 #[derive(Default)]
@@ -114,9 +117,14 @@ fn config_dir_for_store(store: &Store) -> PathBuf {
 }
 
 impl CramApp {
-    pub fn new(_cc: &CreationContext) -> Self {
+    pub fn new(cc: &CreationContext) -> Self {
         let multi_store = build_multi_store();
         let decks = multi_store.load_all_decks().unwrap_or_default();
+
+        let ui_state = UiState::load(multi_store.config_dir()).unwrap_or_default();
+        let theme = ui_state.theme.unwrap_or_default();
+        cc.egui_ctx.set_visuals(theme.visuals());
+
         let mut app = Self {
             multi_store,
             decks,
@@ -124,7 +132,7 @@ impl CramApp {
             new_deck_name: String::new(),
             texture_cache: std::collections::HashMap::new(),
             error_message: None,
-            theme: Theme::Dark,
+            theme,
             search_query: String::new(),
             session_start: None,
             session_reviewed: 0,
@@ -133,6 +141,7 @@ impl CramApp {
             sync_statuses: Vec::new(),
             save_feedback: None,
             confirm_delete_deck: None,
+            last_deck: ui_state.last_deck,
         };
         if app.decks.is_empty() {
             app.seed_sample_deck();
@@ -173,10 +182,31 @@ impl CramApp {
     fn reload_decks(&mut self) {
         self.decks = self.multi_store.load_all_decks().unwrap_or_default();
     }
+
+    /// Persist current UI state (theme, last deck) to `ui_state.toml`.
+    fn save_ui_state(&self) {
+        let state = UiState {
+            theme: Some(self.theme),
+            last_deck: self.last_deck.clone(),
+        };
+        if let Err(e) = state.save(self.multi_store.config_dir()) {
+            tracing::warn!("failed to save UI state: {e}");
+        }
+    }
+}
+
+impl View {
+    fn deck_name(&self) -> Option<&str> {
+        match self {
+            View::Study { deck_name, .. } | View::Editor { deck_name, .. } => Some(deck_name),
+            _ => None,
+        }
+    }
 }
 
 impl eframe::App for CramApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        let prev_deck = self.view.deck_name().map(str::to_string);
         egui::TopBottomPanel::top("topbar")
             .frame(
                 egui::Frame::new()
@@ -212,6 +242,7 @@ impl eframe::App for CramApp {
                         if self.theme != prev {
                             ctx.set_visuals(self.theme.visuals());
                             self.texture_cache.clear();
+                            self.save_ui_state();
                         }
                     });
                 });
@@ -414,6 +445,12 @@ impl eframe::App for CramApp {
 
         if self.fullscreen_preview.is_some() {
             self.show_fullscreen_preview(ctx);
+        }
+
+        let current_deck = self.view.deck_name().map(str::to_string);
+        if current_deck != prev_deck {
+            self.last_deck = current_deck.or(self.last_deck.take());
+            self.save_ui_state();
         }
     }
 }
