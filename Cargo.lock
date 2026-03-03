@@ -1340,6 +1340,7 @@ dependencies = [
  "cram_core",
  "cram_store",
  "image",
+ "insta",
  "tempfile",
  "thiserror 2.0.18",
  "typst",
