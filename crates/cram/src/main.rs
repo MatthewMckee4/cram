@@ -59,6 +59,8 @@ fn run(cli: Cli, settings: &GlobalSettings) -> anyhow::Result<ExitStatus> {
             DecksCommand::List => commands::decks::list(settings)?,
             DecksCommand::Dir => commands::decks::dir(settings)?,
             DecksCommand::New { path } => commands::decks::new(path)?,
+            DecksCommand::Export { name, path } => commands::decks::export(settings, name, path)?,
+            DecksCommand::Import { path } => commands::decks::import(settings, path)?,
             DecksCommand::Link { path } => commands::decks::link(settings, path)?,
             DecksCommand::Unlink { path } => commands::decks::unlink(settings, path)?,
             DecksCommand::Sources => commands::decks::sources(settings)?,

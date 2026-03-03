@@ -1,4 +1,5 @@
 mod error;
+pub mod exchange;
 pub mod git;
 mod multi_store;
 mod sources;

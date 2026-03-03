@@ -8,6 +8,7 @@ use crate::ui_state::UiState;
 use eframe::CreationContext;
 use egui::Context;
 
+use crate::deck_list::DeckListAction;
 use crate::editor::{EditorContext, EditorView};
 use crate::sources::{SourceStatus, SourcesView, SyncTask};
 use crate::stats::StatsView;
@@ -299,7 +300,7 @@ impl eframe::App for CramApp {
                         View::DeckList => {
                             let deck_refs: Vec<(&Deck, &DeckSource)> =
                                 self.decks.iter().map(|(d, s)| (d, s)).collect();
-                            if let Some(name) = DeckListView::show(
+                            if let Some(action) = DeckListView::show(
                                 ui,
                                 ctx,
                                 &deck_refs,
@@ -308,8 +309,15 @@ impl eframe::App for CramApp {
                                 &mut self.confirm_delete_deck,
                                 &mut self.study_tag_filter,
                             ) {
-                                let _ = self.multi_store.delete_deck(&name);
-                                self.reload_decks();
+                                match action {
+                                    DeckListAction::Delete(name) => {
+                                        let _ = self.multi_store.delete_deck(&name);
+                                        self.reload_decks();
+                                    }
+                                    DeckListAction::Import(path) => {
+                                        self.import_deck_from_file(&path);
+                                    }
+                                }
                             }
                         }
                         View::Study {
@@ -515,6 +523,32 @@ impl eframe::App for CramApp {
 }
 
 impl CramApp {
+    fn import_deck_from_file(&mut self, path: &std::path::Path) {
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let result = match ext {
+            "toml" => cram_store::exchange::import_toml(path),
+            "csv" => cram_store::exchange::import_csv(path),
+            other => {
+                self.error_message = Some(format!(
+                    "Unsupported file format: .{other} (expected .toml or .csv)"
+                ));
+                return;
+            }
+        };
+        match result {
+            Ok(deck) => {
+                if let Err(e) = self.multi_store.save_deck(&deck, &DeckSource::Local) {
+                    self.error_message = Some(format!("Failed to save imported deck: {e}"));
+                } else {
+                    self.reload_decks();
+                }
+            }
+            Err(e) => {
+                self.error_message = Some(format!("Failed to import: {e}"));
+            }
+        }
+    }
+
     fn show_fullscreen_preview(&mut self, ctx: &Context) {
         let source = match &self.fullscreen_preview {
             Some(s) => s.clone(),
