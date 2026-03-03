@@ -6,32 +6,31 @@ use crate::app::PreviewDebounce;
 use crate::highlight::typst_layout_job;
 use crate::style;
 
+pub struct EditorContext<'a> {
+    pub decks: &'a mut [Deck],
+    pub deck_name: &'a str,
+    pub card_index: Option<usize>,
+    pub multi_store: &'a MultiStore,
+    pub deck_source: &'a DeckSource,
+    pub texture_cache: &'a mut std::collections::HashMap<String, egui::TextureHandle>,
+    pub preview_debounce: &'a mut PreviewDebounce,
+    pub fullscreen_preview: &'a mut Option<String>,
+    pub save_feedback: &'a mut Option<std::time::Instant>,
+}
+
 pub struct EditorView;
 
 impl EditorView {
-    #[expect(clippy::too_many_arguments)]
-    pub fn show(
-        ui: &mut Ui,
-        ctx: &Context,
-        decks: &mut [Deck],
-        deck_name: &str,
-        card_index: Option<usize>,
-        multi_store: &MultiStore,
-        deck_source: &DeckSource,
-        texture_cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
-        preview_debounce: &mut PreviewDebounce,
-        fullscreen_preview: &mut Option<String>,
-        save_feedback: &mut Option<std::time::Instant>,
-    ) {
-        let Some(deck) = decks.iter_mut().find(|d| d.name() == deck_name) else {
+    pub fn show(ui: &mut Ui, ctx: &Context, ec: &mut EditorContext<'_>) {
+        let Some(deck) = ec.decks.iter_mut().find(|d| d.name() == ec.deck_name) else {
             ui.label("Deck not found.");
             return;
         };
 
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                ui.heading(format!("Edit: {deck_name}"));
-                if let DeckSource::Linked(path) = deck_source {
+                ui.heading(format!("Edit: {}", ec.deck_name));
+                if let DeckSource::Linked(path) = ec.deck_source {
                     ui.label(
                         egui::RichText::new(shorten_home(path))
                             .small()
@@ -44,15 +43,15 @@ impl EditorView {
                         .clicked()
                     {
                         deck.cards_mut().push(Card::new("Front", "Back"));
-                        let _ = multi_store.save_deck(deck, deck_source);
+                        let _ = ec.multi_store.save_deck(deck, ec.deck_source);
                     }
-                    if let Some(saved_at) = *save_feedback {
+                    if let Some(saved_at) = *ec.save_feedback {
                         let elapsed = saved_at.elapsed();
                         if elapsed < std::time::Duration::from_secs(2) {
                             ui.label(egui::RichText::new("Saved!").color(style::ACCENT).strong());
                             ctx.request_repaint_after(std::time::Duration::from_secs(2) - elapsed);
                         } else {
-                            *save_feedback = None;
+                            *ec.save_feedback = None;
                         }
                     }
                 });
@@ -82,8 +81,8 @@ impl EditorView {
                         )
                         .changed()
                     {
-                        let _ = multi_store.save_deck(deck, deck_source);
-                        texture_cache.clear();
+                        let _ = ec.multi_store.save_deck(deck, ec.deck_source);
+                        ec.texture_cache.clear();
                     }
                 });
 
@@ -107,7 +106,7 @@ impl EditorView {
                     ui.push_id(i, |ui| {
                         style::card_frame(ui).show(ui, |ui| {
                             let id = ui.make_persistent_id(("card", i));
-                            let default_open = card_index == Some(i);
+                            let default_open = ec.card_index == Some(i);
                             let state =
                                 egui::collapsing_header::CollapsingState::load_with_default_open(
                                     ui.ctx(),
@@ -142,7 +141,7 @@ impl EditorView {
                                                 .clicked()
                                             {
                                                 save_now = true;
-                                                texture_cache.clear();
+                                                ec.texture_cache.clear();
                                             }
                                         },
                                     );
@@ -206,7 +205,7 @@ impl EditorView {
                                             ui.horizontal(|ui| {
                                                 ui.label("Front Preview:");
                                                 if ui.small_button("Full Screen").clicked() {
-                                                    *fullscreen_preview = Some(with_preamble(
+                                                    *ec.fullscreen_preview = Some(with_preamble(
                                                         deck.preamble(),
                                                         deck.cards()[i].front(),
                                                     ));
@@ -214,7 +213,7 @@ impl EditorView {
                                             });
                                             let front = deck.cards()[i].front().to_string();
                                             let debounced_front =
-                                                preview_debounce.render_source(i, &front, ctx);
+                                                ec.preview_debounce.render_source(i, &front, ctx);
                                             let front_source =
                                                 with_preamble(deck.preamble(), &debounced_front);
                                             let front_key =
@@ -223,7 +222,7 @@ impl EditorView {
                                                 ctx,
                                                 &front_key,
                                                 &front_source,
-                                                texture_cache,
+                                                ec.texture_cache,
                                                 dark_mode,
                                             ) {
                                                 Ok(tex) => {
@@ -244,7 +243,7 @@ impl EditorView {
                                             ui.label("Back Preview:");
                                             let back = deck.cards()[i].back().to_string();
                                             let back_debounce_key = usize::MAX - i;
-                                            let debounced_back = preview_debounce.render_source(
+                                            let debounced_back = ec.preview_debounce.render_source(
                                                 back_debounce_key,
                                                 &back,
                                                 ctx,
@@ -256,7 +255,7 @@ impl EditorView {
                                                 ctx,
                                                 &back_key,
                                                 &back_source,
-                                                texture_cache,
+                                                ec.texture_cache,
                                                 dark_mode,
                                             ) {
                                                 Ok(tex) => {
@@ -278,12 +277,12 @@ impl EditorView {
                 }
 
                 if save_now {
-                    let _ = multi_store.save_deck(deck, deck_source);
-                    *save_feedback = Some(std::time::Instant::now());
+                    let _ = ec.multi_store.save_deck(deck, ec.deck_source);
+                    *ec.save_feedback = Some(std::time::Instant::now());
                 }
                 if let Some(idx) = to_delete {
                     deck.cards_mut().remove(idx);
-                    let _ = multi_store.save_deck(deck, deck_source);
+                    let _ = ec.multi_store.save_deck(deck, ec.deck_source);
                 }
             });
         });
