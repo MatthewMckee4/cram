@@ -30,6 +30,11 @@ impl CramWorld {
             book: LazyHash::new(fonts.book.clone()),
         }
     }
+
+    /// Return the main source, used to resolve span locations in diagnostics.
+    pub(crate) fn main_source(&self) -> &Source {
+        &self.source
+    }
 }
 
 impl World for CramWorld {
