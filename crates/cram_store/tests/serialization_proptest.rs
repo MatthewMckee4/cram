@@ -20,7 +20,7 @@ fn arb_deck() -> impl Strategy<Value = Deck> {
 
 /// Compare all user-visible fields of two cards (ignoring the random id assigned on construction).
 fn cards_equal(a: &Card, b: &Card) -> bool {
-    a.front() == b.front() && a.back() == b.back()
+    a.front() == b.front() && a.back() == b.back() && a.tags() == b.tags()
 }
 
 fn decks_equal(a: &Deck, b: &Deck) -> bool {

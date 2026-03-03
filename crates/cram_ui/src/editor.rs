@@ -17,6 +17,7 @@ pub struct EditorContext<'a> {
     pub preview_debounce: &'a mut PreviewDebounce,
     pub fullscreen_preview: &'a mut Option<String>,
     pub save_feedback: &'a mut Option<std::time::Instant>,
+    pub tag_input: &'a mut std::collections::HashMap<usize, String>,
 }
 
 pub struct EditorView;
@@ -121,6 +122,11 @@ impl EditorView {
                                     ui.spacing_mut().interact_size.y = 28.0;
                                     ui.label(egui::RichText::new(format!("#{}", i + 1)).strong());
                                     ui.label(egui::RichText::new(&preview).weak().italics());
+                                    for tag in deck.cards()[i].tags() {
+                                        ui.label(
+                                            egui::RichText::new(tag).small().color(style::ACCENT),
+                                        );
+                                    }
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
@@ -195,6 +201,91 @@ impl EditorView {
                                                 .desired_width(col_w)
                                                 .layouter(&mut back_layouter),
                                             );
+
+                                            ui.add_space(8.0);
+                                            ui.label("Tags:");
+                                            ui.horizontal_wrapped(|ui| {
+                                                let mut tag_to_remove = None;
+                                                for (ti, tag) in
+                                                    deck.cards()[i].tags().iter().enumerate()
+                                                {
+                                                    let chip = ui.add(
+                                                        egui::Button::new(
+                                                            egui::RichText::new(format!(
+                                                                "{tag} \u{00d7}"
+                                                            ))
+                                                            .small(),
+                                                        )
+                                                        .corner_radius(12.0)
+                                                        .fill(style::ACCENT.gamma_multiply(0.2)),
+                                                    );
+                                                    if chip.clicked() {
+                                                        tag_to_remove = Some(ti);
+                                                    }
+                                                }
+                                                if let Some(ti) = tag_to_remove {
+                                                    deck.cards_mut()[i].tags_mut().remove(ti);
+                                                    let _ = ec
+                                                        .multi_store
+                                                        .save_deck(deck, ec.deck_source);
+                                                }
+                                            });
+                                            let all_tags = deck.all_tags();
+                                            let buf = ec.tag_input.entry(i).or_default();
+                                            let resp = ui.add(
+                                                egui::TextEdit::singleline(buf)
+                                                    .desired_width(col_w * 0.6)
+                                                    .hint_text("Add tag..."),
+                                            );
+                                            let enter_pressed = resp.lost_focus()
+                                                && ui
+                                                    .input(|inp| inp.key_pressed(egui::Key::Enter));
+                                            if !buf.is_empty() {
+                                                let lower = buf.to_lowercase();
+                                                let suggestions: Vec<&str> = all_tags
+                                                    .iter()
+                                                    .filter(|t| {
+                                                        t.to_lowercase().contains(&lower)
+                                                            && !deck.cards()[i].has_tag(t)
+                                                    })
+                                                    .map(String::as_str)
+                                                    .take(5)
+                                                    .collect();
+                                                if !suggestions.is_empty() {
+                                                    let mut picked = None;
+                                                    for s in &suggestions {
+                                                        if ui.small_button(*s).clicked() {
+                                                            picked = Some((*s).to_string());
+                                                        }
+                                                    }
+                                                    if let Some(tag) = picked {
+                                                        if !deck.cards()[i].has_tag(&tag) {
+                                                            deck.cards_mut()[i]
+                                                                .tags_mut()
+                                                                .push(tag);
+                                                            let _ = ec
+                                                                .multi_store
+                                                                .save_deck(deck, ec.deck_source);
+                                                        }
+                                                        buf.clear();
+                                                        ui.memory_mut(|m| {
+                                                            m.surrender_focus(resp.id);
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                            if enter_pressed {
+                                                let trimmed = buf.trim().to_string();
+                                                if !trimmed.is_empty()
+                                                    && !deck.cards()[i].has_tag(&trimmed)
+                                                {
+                                                    deck.cards_mut()[i].tags_mut().push(trimmed);
+                                                    let _ = ec
+                                                        .multi_store
+                                                        .save_deck(deck, ec.deck_source);
+                                                }
+                                                buf.clear();
+                                            }
                                         });
 
                                         ui.separator();

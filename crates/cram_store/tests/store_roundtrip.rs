@@ -83,3 +83,41 @@ fn overwrite_deck_updates_content() {
     assert_eq!(loaded.description(), "v2");
     assert_eq!(loaded.cards().len(), 2);
 }
+
+#[test]
+fn save_load_preserves_tags() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let store = Store::with_dir(dir.path().to_path_buf()).expect("store");
+
+    let mut deck = Deck::new("Tagged", "tags test");
+    let mut card = Card::new("Q", "A");
+    card.tags_mut().push("rust".to_string());
+    card.tags_mut().push("memory".to_string());
+    deck.cards_mut().push(card);
+
+    let untagged = Card::new("Q2", "A2");
+    deck.cards_mut().push(untagged);
+
+    store.save_deck(&deck).expect("save");
+
+    let loaded = store.load_deck("Tagged").expect("load");
+    assert_eq!(loaded.cards()[0].tags(), &["rust", "memory"]);
+    assert!(loaded.cards()[1].tags().is_empty());
+}
+
+#[test]
+fn tags_omitted_from_toml_when_empty() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let store = Store::with_dir(dir.path().to_path_buf()).expect("store");
+
+    let mut deck = Deck::new("NoTags", "");
+    deck.cards_mut().push(Card::new("Q", "A"));
+    store.save_deck(&deck).expect("save");
+
+    let path = dir.path().join("NoTags.toml");
+    let content = std::fs::read_to_string(path).expect("read toml");
+    assert!(
+        !content.contains("tags"),
+        "tags field should be omitted when empty"
+    );
+}

@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use chrono::Utc;
 use cram_core::{Deck, sm2};
 use cram_store::DeckSource;
@@ -17,6 +19,7 @@ impl DeckListView {
         view: &mut View,
         new_deck_name: &mut String,
         confirm_delete: &mut Option<String>,
+        study_tag_filter: &mut BTreeSet<String>,
     ) -> Option<String> {
         let mut deleted = None;
 
@@ -84,6 +87,7 @@ impl DeckListView {
                 .show(ui, |ui| {
                     for (i, (deck, _source)) in decks.iter().enumerate() {
                         let total = deck.cards().len();
+                        let all_tags = deck.all_tags();
 
                         style::card_frame(ui).show(ui, |ui| {
                             ui.set_min_width(240.0);
@@ -107,16 +111,53 @@ impl DeckListView {
                                     );
                                 }
 
+                                if !all_tags.is_empty() {
+                                    ui.add_space(4.0);
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.label(
+                                            egui::RichText::new("Filter tags:")
+                                                .small()
+                                                .color(ui.visuals().weak_text_color()),
+                                        );
+                                        for tag in &all_tags {
+                                            let selected = study_tag_filter.contains(tag);
+                                            let text = egui::RichText::new(tag).small();
+                                            if ui.selectable_label(selected, text).clicked() {
+                                                if selected {
+                                                    study_tag_filter.remove(tag);
+                                                } else {
+                                                    study_tag_filter.insert(tag.clone());
+                                                }
+                                            }
+                                        }
+                                    });
+                                    let filtered =
+                                        deck.card_indices_matching_tags(study_tag_filter);
+                                    if !study_tag_filter.is_empty() {
+                                        ui.label(
+                                            egui::RichText::new(format!(
+                                                "{}/{total} cards match",
+                                                filtered.len()
+                                            ))
+                                            .small()
+                                            .color(ui.visuals().weak_text_color()),
+                                        );
+                                    }
+                                }
+
                                 ui.add_space(12.0);
                                 ui.horizontal(|ui| {
                                     if ui.add(style::accent_button("Study")).clicked() {
+                                        let indices =
+                                            deck.card_indices_matching_tags(study_tag_filter);
                                         *view = View::Study {
                                             deck_name: deck.name().to_string(),
                                             card_index: 0,
                                             revealed: false,
-                                            shuffled_indices: shuffled_indices(total),
+                                            shuffled_indices: shuffled_indices_from(indices),
                                             study_mode: StudyMode::Random,
                                         };
+                                        study_tag_filter.clear();
                                     }
                                     if ui
                                         .add(style::secondary_button("Spaced"))
@@ -160,12 +201,11 @@ impl DeckListView {
     }
 }
 
-/// Build a shuffled index list for a deck with `count` cards.
-fn shuffled_indices(count: usize) -> Vec<usize> {
+/// Build a shuffled version of the provided card indices.
+fn shuffled_indices_from(mut indices: Vec<usize>) -> Vec<usize> {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
-    let mut indices: Vec<usize> = (0..count).collect();
     let mut hasher = DefaultHasher::new();
     std::time::Instant::now().hash(&mut hasher);
     let mut seed = hasher.finish();

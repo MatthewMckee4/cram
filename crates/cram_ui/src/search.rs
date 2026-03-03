@@ -38,6 +38,9 @@ impl SearchView {
                         .filter(|(_, c)| {
                             c.front().to_lowercase().contains(&lower_query)
                                 || c.back().to_lowercase().contains(&lower_query)
+                                || c.tags()
+                                    .iter()
+                                    .any(|t| t.to_lowercase().contains(&lower_query))
                         })
                         .collect();
 
@@ -55,6 +58,17 @@ impl SearchView {
                                 ui.vertical(|ui| {
                                     ui.label(egui::RichText::new(card.front()).strong());
                                     ui.label(card.back());
+                                    if !card.tags().is_empty() {
+                                        ui.horizontal_wrapped(|ui| {
+                                            for tag in card.tags() {
+                                                ui.label(
+                                                    egui::RichText::new(tag)
+                                                        .small()
+                                                        .color(style::ACCENT),
+                                                );
+                                            }
+                                        });
+                                    }
                                 });
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),

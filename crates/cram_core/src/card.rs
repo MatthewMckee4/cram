@@ -9,6 +9,8 @@ pub struct Card {
     back: String,
     #[serde(default)]
     review: ReviewState,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    tags: Vec<String>,
 }
 
 /// Spaced-repetition scheduling state for a single card (SM-2 algorithm).
@@ -42,6 +44,7 @@ impl Card {
             front: front.into(),
             back: back.into(),
             review: ReviewState::default(),
+            tags: Vec::new(),
         }
     }
 
@@ -71,6 +74,18 @@ impl Card {
 
     pub fn review_mut(&mut self) -> &mut ReviewState {
         &mut self.review
+    }
+
+    pub fn tags(&self) -> &[String] {
+        &self.tags
+    }
+
+    pub fn tags_mut(&mut self) -> &mut Vec<String> {
+        &mut self.tags
+    }
+
+    pub fn has_tag(&self, tag: &str) -> bool {
+        self.tags.iter().any(|t| t == tag)
     }
 }
 
@@ -104,5 +119,26 @@ mod tests {
         let mut card = Card::new("Q", "A");
         card.back_mut().push_str(" updated");
         assert_eq!(card.back(), "A updated");
+    }
+
+    #[test]
+    fn new_card_has_no_tags() {
+        let card = Card::new("Q", "A");
+        assert!(card.tags().is_empty());
+    }
+
+    #[test]
+    fn tags_mut_allows_push() {
+        let mut card = Card::new("Q", "A");
+        card.tags_mut().push("rust".to_string());
+        assert_eq!(card.tags(), &["rust"]);
+    }
+
+    #[test]
+    fn has_tag_returns_true_for_existing_tag() {
+        let mut card = Card::new("Q", "A");
+        card.tags_mut().push("memory".to_string());
+        assert!(card.has_tag("memory"));
+        assert!(!card.has_tag("other"));
     }
 }

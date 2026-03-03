@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use cram_core::Deck;
@@ -65,6 +66,8 @@ pub struct CramApp {
     save_feedback: Option<std::time::Instant>,
     confirm_delete_deck: Option<String>,
     last_deck: Option<String>,
+    tag_input: std::collections::HashMap<usize, String>,
+    study_tag_filter: BTreeSet<String>,
 }
 
 #[derive(Default)]
@@ -153,6 +156,8 @@ impl CramApp {
             save_feedback: None,
             confirm_delete_deck: None,
             last_deck: ui_state.last_deck,
+            tag_input: std::collections::HashMap::new(),
+            study_tag_filter: BTreeSet::new(),
         };
         if app.decks.is_empty() {
             app.seed_sample_deck();
@@ -295,6 +300,7 @@ impl eframe::App for CramApp {
                                 &mut self.view,
                                 &mut self.new_deck_name,
                                 &mut self.confirm_delete_deck,
+                                &mut self.study_tag_filter,
                             ) {
                                 let _ = self.multi_store.delete_deck(&name);
                                 self.reload_decks();
@@ -364,6 +370,7 @@ impl eframe::App for CramApp {
                                 preview_debounce: &mut self.preview_debounce,
                                 fullscreen_preview: &mut self.fullscreen_preview,
                                 save_feedback: &mut self.save_feedback,
+                                tag_input: &mut self.tag_input,
                             };
                             EditorView::show(ui, ctx, &mut ec);
                             // Write modified decks back
