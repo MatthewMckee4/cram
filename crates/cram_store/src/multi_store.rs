@@ -1,4 +1,7 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use anyhow::Result;
 use cram_core::Deck;
@@ -16,6 +19,21 @@ pub enum DeckSource {
     Linked(PathBuf),
 }
 
+/// Cached entry for a single deck file, keyed by its path.
+#[derive(Clone)]
+struct CachedDeck {
+    deck: Deck,
+    source: DeckSource,
+    modified: SystemTime,
+}
+
+/// Stores previously loaded decks keyed by file path, along with their
+/// modification timestamps. Only files whose mtime has changed are re-read.
+#[derive(Default)]
+struct DeckCache {
+    entries: HashMap<PathBuf, CachedDeck>,
+}
+
 /// Aggregates decks from the primary store and any linked sources (files or folders).
 pub struct MultiStore {
     primary: Store,
@@ -23,6 +41,7 @@ pub struct MultiStore {
     linked_files: Vec<PathBuf>,
     sources: Sources,
     config_dir: PathBuf,
+    cache: RefCell<DeckCache>,
 }
 
 impl MultiStore {
@@ -58,6 +77,7 @@ impl MultiStore {
             linked_files,
             sources,
             config_dir,
+            cache: RefCell::default(),
         })
     }
 
@@ -74,35 +94,62 @@ impl MultiStore {
     }
 
     /// Load all decks from the primary store and all linked sources.
+    ///
+    /// Results are cached by file path and modification time. Only files whose
+    /// mtime has changed since the last call are re-read from disk. The cache
+    /// is automatically invalidated by mutating operations like `save_deck`,
+    /// `delete_deck`, `link`, and `unlink`.
     pub fn load_all_decks(&self) -> Result<Vec<(Deck, DeckSource)>> {
         let mut result = Vec::new();
+        let mut cache = self.cache.borrow_mut();
+        let mut seen_paths: Vec<PathBuf> = Vec::new();
 
-        for deck in self.primary.load_all_decks()? {
-            result.push((deck, DeckSource::Local));
+        for file_path in self.primary_toml_files() {
+            seen_paths.push(file_path.clone());
+            if let Some(entry) = cached_or_reload(&mut cache.entries, &file_path, DeckSource::Local)
+            {
+                result.push((entry.deck.clone(), entry.source.clone()));
+            }
         }
 
         for dir in &self.linked_folders {
             for file_path in find_toml_files(dir) {
-                match load_deck_from_file(&file_path) {
-                    Ok(deck) => result.push((deck, DeckSource::Linked(file_path))),
-                    Err(e) => tracing::warn!("failed to load deck from {}: {e}", dir.display()),
+                seen_paths.push(file_path.clone());
+                let source = DeckSource::Linked(file_path.clone());
+                if let Some(entry) = cached_or_reload(&mut cache.entries, &file_path, source) {
+                    result.push((entry.deck.clone(), entry.source.clone()));
                 }
             }
         }
 
         for file_path in &self.linked_files {
-            match load_deck_from_file(file_path) {
-                Ok(deck) => result.push((deck, DeckSource::Linked(file_path.clone()))),
-                Err(e) => tracing::warn!("failed to load deck from {}: {e}", file_path.display()),
+            seen_paths.push(file_path.clone());
+            let source = DeckSource::Linked(file_path.clone());
+            if let Some(entry) = cached_or_reload(&mut cache.entries, file_path, source) {
+                result.push((entry.deck.clone(), entry.source.clone()));
             }
         }
+
+        cache.entries.retain(|k, _| seen_paths.contains(k));
 
         Ok(result)
     }
 
+    /// List toml file paths in the primary store directory.
+    fn primary_toml_files(&self) -> Vec<PathBuf> {
+        find_toml_files(self.primary.data_dir())
+    }
+
+    /// Invalidate the deck cache so the next `load_all_decks` re-reads from disk.
+    pub fn invalidate_cache(&self) {
+        self.cache.borrow_mut().entries.clear();
+    }
+
     /// Save a deck back to its source location.
+    ///
+    /// Invalidates the deck cache so the next `load_all_decks` picks up changes.
     pub fn save_deck(&self, deck: &Deck, source: &DeckSource) -> Result<()> {
-        match source {
+        let result = match source {
             DeckSource::Local => self.primary.save_deck(deck),
             DeckSource::Linked(path) => {
                 if path.extension().and_then(|e| e.to_str()) == Some("toml") {
@@ -113,11 +160,23 @@ impl MultiStore {
                     store.save_deck(deck)
                 }
             }
-        }
+        };
+        self.invalidate_cache();
+        result
     }
 
     /// Delete a deck from whichever store it lives in.
+    ///
+    /// Invalidates the deck cache so the next `load_all_decks` picks up changes.
     pub fn delete_deck(&self, name: &str) -> Result<()> {
+        let result = self.delete_deck_inner(name);
+        if result.is_ok() {
+            self.invalidate_cache();
+        }
+        result
+    }
+
+    fn delete_deck_inner(&self, name: &str) -> Result<()> {
         if self.primary.load_deck(name).is_ok() {
             return self.primary.delete_deck(name);
         }
@@ -143,6 +202,8 @@ impl MultiStore {
     }
 
     /// Link an external path as a deck source.
+    ///
+    /// Invalidates the deck cache when a new source is added.
     pub fn link(&mut self, path: PathBuf, kind: SourceKind) -> Result<bool> {
         match kind {
             SourceKind::Folder => {
@@ -169,10 +230,13 @@ impl MultiStore {
                 self.linked_files.push(path);
             }
         }
+        self.invalidate_cache();
         Ok(true)
     }
 
     /// Unlink a previously linked source (file or folder).
+    ///
+    /// Invalidates the deck cache when a source is removed.
     pub fn unlink(&mut self, path: &Path) -> Result<bool> {
         if !self.sources.remove(path) {
             return Ok(false);
@@ -180,11 +244,14 @@ impl MultiStore {
         self.sources.save(&self.config_dir)?;
         self.linked_folders.retain(|p| p != path);
         self.linked_files.retain(|p| p != path);
+        self.invalidate_cache();
         Ok(true)
     }
 
     /// Run `git pull --ff-only` on all linked sources that are git repos.
     /// Deduplicates so each git root is only pulled once.
+    ///
+    /// Invalidates the deck cache since pulled changes may update deck files.
     pub fn sync_all(&self) -> Vec<(PathBuf, git::SyncResult)> {
         let mut seen = std::collections::HashSet::new();
         let mut results = Vec::new();
@@ -205,13 +272,56 @@ impl MultiStore {
             }
         }
 
+        self.invalidate_cache();
         results
     }
 
     /// Run `git pull --ff-only` on a specific path (walks up to find git root).
+    ///
+    /// Invalidates the deck cache since pulled changes may update deck files.
     pub fn sync(&self, path: &Path) -> git::SyncResult {
-        git::pull(path)
+        let result = git::pull(path);
+        self.invalidate_cache();
+        result
     }
+}
+
+/// Return a cached entry if the file's mtime hasn't changed, otherwise reload.
+/// Returns `None` if the file cannot be read (logged as a warning).
+fn cached_or_reload(
+    entries: &mut HashMap<PathBuf, CachedDeck>,
+    path: &Path,
+    source: DeckSource,
+) -> Option<CachedDeck> {
+    let mtime = file_modified(path);
+
+    if let Some(cached) = entries.get(path)
+        && Some(cached.modified) == mtime
+    {
+        return Some(cached.clone());
+    }
+
+    match load_deck_from_file(path) {
+        Ok(deck) => {
+            let modified = mtime.unwrap_or(SystemTime::UNIX_EPOCH);
+            let entry = CachedDeck {
+                deck,
+                source,
+                modified,
+            };
+            entries.insert(path.to_path_buf(), entry.clone());
+            Some(entry)
+        }
+        Err(e) => {
+            tracing::warn!("failed to load deck from {}: {e}", path.display());
+            entries.remove(path);
+            None
+        }
+    }
+}
+
+fn file_modified(path: &Path) -> Option<SystemTime> {
+    std::fs::metadata(path).and_then(|m| m.modified()).ok()
 }
 
 fn load_deck_from_file(path: &Path) -> Result<Deck> {
@@ -418,6 +528,155 @@ mod tests {
         let reloaded: Deck =
             toml::from_str(&std::fs::read_to_string(&file_path).expect("read")).expect("parse");
         assert_eq!(reloaded.description(), "updated");
+    }
+
+    #[test]
+    fn cache_returns_same_results_on_second_call() {
+        let (ms, _dir) = temp_multi_store();
+        ms.primary
+            .save_deck(&Deck::new("cached", ""))
+            .expect("save");
+
+        let first = ms.load_all_decks().expect("first load");
+        let second = ms.load_all_decks().expect("second load");
+        assert_eq!(first.len(), second.len());
+        assert_eq!(first[0].0.name(), second[0].0.name());
+    }
+
+    #[test]
+    fn cache_detects_external_file_modification() {
+        let (ms, _dir) = temp_multi_store();
+        ms.primary
+            .save_deck(&Deck::new("evolving", "v1"))
+            .expect("save");
+
+        let first = ms.load_all_decks().expect("first load");
+        assert_eq!(first[0].0.description(), "v1");
+
+        // Modify the file directly (simulating an external edit)
+        let deck_path = ms.primary.data_dir().join("evolving.toml");
+        let updated = Deck::new("evolving", "v2");
+        let content = toml::to_string_pretty(&updated).expect("ser");
+        // Ensure mtime changes by waiting a moment then writing
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::fs::write(&deck_path, content).expect("write");
+
+        let second = ms.load_all_decks().expect("second load");
+        assert_eq!(second[0].0.description(), "v2");
+    }
+
+    #[test]
+    fn save_deck_invalidates_cache() {
+        let (ms, _dir) = temp_multi_store();
+        ms.primary
+            .save_deck(&Deck::new("orig", "v1"))
+            .expect("save");
+
+        let first = ms.load_all_decks().expect("first load");
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].0.description(), "v1");
+
+        let updated = Deck::new("orig", "v2");
+        ms.save_deck(&updated, &DeckSource::Local).expect("save");
+
+        let second = ms.load_all_decks().expect("second load");
+        assert_eq!(second[0].0.description(), "v2");
+    }
+
+    #[test]
+    fn delete_deck_invalidates_cache() {
+        let (ms, _dir) = temp_multi_store();
+        ms.primary
+            .save_deck(&Deck::new("doomed", ""))
+            .expect("save");
+
+        let first = ms.load_all_decks().expect("first load");
+        assert_eq!(first.len(), 1);
+
+        ms.delete_deck("doomed").expect("delete");
+
+        let second = ms.load_all_decks().expect("second load");
+        assert!(second.is_empty());
+    }
+
+    #[test]
+    fn link_invalidates_cache() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let primary_dir = dir.path().join("primary");
+        std::fs::create_dir_all(&primary_dir).expect("mkdir");
+        let linked_dir = dir.path().join("linked");
+        std::fs::create_dir_all(&linked_dir).expect("mkdir");
+        let config_dir = dir.path().join("config");
+        std::fs::create_dir_all(&config_dir).expect("mkdir");
+
+        let deck = Deck::new("linked-deck", "");
+        std::fs::write(
+            linked_dir.join("linked-deck.toml"),
+            toml::to_string_pretty(&deck).expect("ser"),
+        )
+        .expect("write");
+
+        let primary = Store::with_dir(primary_dir).expect("primary");
+        let mut ms = MultiStore::new(primary, config_dir).expect("ms");
+
+        let before = ms.load_all_decks().expect("before link");
+        assert!(before.is_empty());
+
+        ms.link(linked_dir, SourceKind::Folder).expect("link");
+
+        let after = ms.load_all_decks().expect("after link");
+        assert_eq!(after.len(), 1);
+        assert_eq!(after[0].0.name(), "linked-deck");
+    }
+
+    #[test]
+    fn unlink_invalidates_cache() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let primary_dir = dir.path().join("primary");
+        std::fs::create_dir_all(&primary_dir).expect("mkdir");
+        let linked_dir = dir.path().join("linked");
+        std::fs::create_dir_all(&linked_dir).expect("mkdir");
+        let config_dir = dir.path().join("config");
+        std::fs::create_dir_all(&config_dir).expect("mkdir");
+
+        let deck = Deck::new("will-unlink", "");
+        std::fs::write(
+            linked_dir.join("will-unlink.toml"),
+            toml::to_string_pretty(&deck).expect("ser"),
+        )
+        .expect("write");
+
+        let primary = Store::with_dir(primary_dir).expect("primary");
+        let mut ms = MultiStore::new(primary, config_dir).expect("ms");
+        ms.link(linked_dir.clone(), SourceKind::Folder)
+            .expect("link");
+
+        let before = ms.load_all_decks().expect("before unlink");
+        assert_eq!(before.len(), 1);
+
+        ms.unlink(&linked_dir).expect("unlink");
+
+        let after = ms.load_all_decks().expect("after unlink");
+        assert!(after.is_empty());
+    }
+
+    #[test]
+    fn cache_prunes_deleted_files() {
+        let (ms, _dir) = temp_multi_store();
+        ms.primary.save_deck(&Deck::new("stays", "")).expect("save");
+        ms.primary.save_deck(&Deck::new("goes", "")).expect("save");
+
+        let first = ms.load_all_decks().expect("first load");
+        assert_eq!(first.len(), 2);
+
+        // Delete one file directly (bypassing MultiStore)
+        let gone_path = ms.primary.data_dir().join("goes.toml");
+        std::fs::remove_file(gone_path).expect("remove");
+        ms.invalidate_cache();
+
+        let second = ms.load_all_decks().expect("second load");
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].0.name(), "stays");
     }
 
     #[test]
