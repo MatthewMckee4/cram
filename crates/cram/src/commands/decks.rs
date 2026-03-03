@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::settings::GlobalSettings;
 use cram_core::Deck;
-use cram_store::{MultiStore, SourceKind, Store};
+use cram_store::{MultiStore, SourceKind, Store, exchange};
 
 fn store(settings: &GlobalSettings) -> anyhow::Result<Store> {
     match &settings.decks_dir {
@@ -110,6 +110,43 @@ pub fn new(path: PathBuf) -> anyhow::Result<()> {
     let content = toml::to_string_pretty(&deck)?;
     std::fs::write(&path, content)?;
     println!("Created deck: {}", path.display());
+    Ok(())
+}
+
+pub fn export(settings: &GlobalSettings, name: String, path: PathBuf) -> anyhow::Result<()> {
+    let ext = path.extension().and_then(|e| e.to_str());
+    if ext != Some("toml") {
+        anyhow::bail!("export file must have a .toml extension");
+    }
+    let ms = multi_store(settings)?;
+    let decks = ms.load_all_decks()?;
+    let deck = decks.iter().find(|(d, _)| d.name() == name).map(|(d, _)| d);
+    if let Some(deck) = deck {
+        exchange::export_toml(deck, &path)?;
+        println!("Exported \"{}\" to {}", name, path.display());
+    } else {
+        anyhow::bail!("deck not found: {name}");
+    }
+    Ok(())
+}
+
+pub fn import(settings: &GlobalSettings, path: PathBuf) -> anyhow::Result<()> {
+    if !path.is_file() {
+        anyhow::bail!("file not found: {}", path.display());
+    }
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let deck = match ext {
+        "toml" => exchange::import_toml(&path)?,
+        "csv" => exchange::import_csv(&path)?,
+        other => anyhow::bail!("unsupported file format: .{other} (expected .toml or .csv)"),
+    };
+    let ms = multi_store(settings)?;
+    ms.primary().save_deck(&deck)?;
+    println!(
+        "Imported \"{}\" ({} cards)",
+        deck.name(),
+        deck.cards().len()
+    );
     Ok(())
 }
 

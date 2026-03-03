@@ -8,10 +8,16 @@ use egui::{Context, Ui};
 use crate::app::{StudyMode, View};
 use crate::style;
 
+/// Actions the deck list can request from the app.
+pub enum DeckListAction {
+    Delete(String),
+    Import(std::path::PathBuf),
+}
+
 pub struct DeckListView;
 
 impl DeckListView {
-    /// Returns `Some(deck_name)` when a deck deletion is confirmed.
+    /// Returns an optional action for the app to handle (delete or import).
     pub fn show(
         ui: &mut Ui,
         ctx: &Context,
@@ -20,8 +26,8 @@ impl DeckListView {
         new_deck_name: &mut String,
         confirm_delete: &mut Option<String>,
         study_tag_filter: &mut BTreeSet<String>,
-    ) -> Option<String> {
-        let mut deleted = None;
+    ) -> Option<DeckListAction> {
+        let mut action = None;
 
         if let Some(deck_name) = confirm_delete.clone() {
             let mut open = true;
@@ -37,7 +43,7 @@ impl DeckListView {
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         if ui.add(style::destructive_button("Delete")).clicked() {
-                            deleted = Some(deck_name);
+                            action = Some(DeckListAction::Delete(deck_name));
                             *confirm_delete = None;
                         }
                         if ui.button("Cancel").clicked() {
@@ -58,6 +64,13 @@ impl DeckListView {
                     if ui.add(style::accent_button("New Deck")).clicked() {
                         *new_deck_name = String::new();
                         *view = View::NewDeck;
+                    }
+                    if ui.add(style::secondary_button("Import")).clicked()
+                        && let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Deck files", &["toml", "csv"])
+                            .pick_file()
+                    {
+                        action = Some(DeckListAction::Import(path));
                     }
                 });
             });
@@ -183,6 +196,16 @@ impl DeckListView {
                                             card_index: None,
                                         };
                                     }
+                                    if ui.add(style::secondary_button("Export")).clicked()
+                                        && let Some(path) = rfd::FileDialog::new()
+                                            .set_file_name(format!("{}.toml", deck.name()))
+                                            .add_filter("TOML deck files", &["toml"])
+                                            .save_file()
+                                        && let Err(e) =
+                                            cram_store::exchange::export_toml(deck, &path)
+                                    {
+                                        tracing::warn!("export failed: {e}");
+                                    }
                                     if ui.add(style::destructive_button("Delete")).clicked() {
                                         *confirm_delete = Some(deck.name().to_string());
                                     }
@@ -197,7 +220,7 @@ impl DeckListView {
                 });
         });
 
-        deleted
+        action
     }
 }
 

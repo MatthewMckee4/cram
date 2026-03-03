@@ -54,6 +54,18 @@ pub enum DecksCommand {
         /// Path for the new deck file (must end in .toml)
         path: PathBuf,
     },
+    /// Export a deck to a TOML file
+    Export {
+        /// Name of the deck to export
+        name: String,
+        /// Output file path (must end in .toml)
+        path: PathBuf,
+    },
+    /// Import a deck from a TOML or CSV file
+    Import {
+        /// Path to the file to import (.toml or .csv)
+        path: PathBuf,
+    },
     /// Link an external file or directory as a deck source
     Link {
         /// Path to the file or directory to link
