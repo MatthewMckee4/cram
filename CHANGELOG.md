@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.1-alpha.2
+
+### New Features
+
+- feat: replace light/dark toggle with selectable theme system ([#74](https://github.com/MatthewMckee4/cram/pull/74))
+
+### Contributors
+
+- [@MatthewMckee4](https://github.com/MatthewMckee4)
+
 ## 0.0.1-alpha.1
 
 ### Documentation
