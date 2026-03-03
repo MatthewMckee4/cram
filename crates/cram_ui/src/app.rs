@@ -176,10 +176,14 @@ impl CramApp {
 impl eframe::App for CramApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("topbar")
-            .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(16, 10)))
+            .frame(
+                egui::Frame::new()
+                    .fill(ctx.style().visuals.panel_fill)
+                    .inner_margin(egui::Margin::symmetric(16, 10)),
+            )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.heading("📚 Cram");
+                    ui.heading("Cram");
                     ui.separator();
                     let nav = [
                         ("Decks", View::DeckList),
