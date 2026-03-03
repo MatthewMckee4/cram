@@ -4,6 +4,7 @@ mod editor;
 mod highlight;
 mod search;
 mod sources;
+mod stats;
 mod study;
 mod style;
 mod texture_cache;

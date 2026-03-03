@@ -1355,6 +1355,7 @@ name = "cram_store"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "cram_core",
  "cram_static",
  "dirs",
