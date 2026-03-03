@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+chrono.workspace = true
 cram_core.workspace = true
 cram_static.workspace = true
 dirs.workspace = true

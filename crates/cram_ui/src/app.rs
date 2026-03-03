@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use cram_core::Deck;
-use cram_store::{DeckSource, MultiStore, Store};
+use cram_store::{DeckSource, MultiStore, Store, StudyStats};
 
 use crate::ui_state::UiState;
 use eframe::CreationContext;
@@ -10,6 +10,7 @@ use egui::Context;
 
 use crate::editor::{EditorContext, EditorView};
 use crate::sources::{SourceStatus, SourcesView, SyncTask};
+use crate::stats::StatsView;
 use crate::study::{StudyContext, StudyView};
 use crate::style;
 use crate::texture_cache::TextureCache;
@@ -34,6 +35,7 @@ pub enum View {
     NewDeck,
     Search,
     Sources,
+    Stats,
     SessionSummary {
         deck_name: String,
         cards_reviewed: u32,
@@ -61,6 +63,7 @@ pub struct CramApp {
     session_reviewed: u32,
     preview_debounce: PreviewDebounce,
     fullscreen_preview: Option<String>,
+    study_stats: StudyStats,
     sync_statuses: Vec<SourceStatus>,
     sync_task: Option<SyncTask>,
     save_feedback: Option<std::time::Instant>,
@@ -133,6 +136,7 @@ impl CramApp {
     pub fn new(cc: &CreationContext) -> Self {
         let multi_store = build_multi_store();
         let decks = multi_store.load_all_decks().unwrap_or_default();
+        let study_stats = StudyStats::load(multi_store.config_dir()).unwrap_or_default();
 
         let ui_state = UiState::load(multi_store.config_dir()).unwrap_or_default();
         let theme = ui_state.theme.unwrap_or_default();
@@ -151,6 +155,7 @@ impl CramApp {
             session_reviewed: 0,
             preview_debounce: PreviewDebounce::default(),
             fullscreen_preview: None,
+            study_stats,
             sync_statuses: Vec::new(),
             sync_task: None,
             save_feedback: None,
@@ -236,6 +241,7 @@ impl eframe::App for CramApp {
                     let nav = [
                         ("Decks", View::DeckList),
                         ("Search", View::Search),
+                        ("Stats", View::Stats),
                         ("Sources", View::Sources),
                     ];
                     for (label, target) in nav {
@@ -338,7 +344,23 @@ impl eframe::App for CramApp {
                             {
                                 let _ = self.multi_store.save_deck(deck, source);
                             }
-                            if matches!(self.view, View::Study { .. }) {
+                            if let View::SessionSummary {
+                                deck_name: ref summary_deck,
+                                cards_reviewed,
+                                elapsed_secs,
+                            } = self.view
+                            {
+                                self.study_stats.record_session(
+                                    summary_deck.clone(),
+                                    chrono::Utc::now().date_naive(),
+                                    cards_reviewed,
+                                    elapsed_secs,
+                                );
+                                if let Err(e) = self.study_stats.save(self.multi_store.config_dir())
+                                {
+                                    tracing::warn!("failed to save study stats: {e}");
+                                }
+                            } else if matches!(self.view, View::Study { .. }) {
                                 self.view = View::Study {
                                     deck_name,
                                     card_index,
@@ -409,6 +431,9 @@ impl eframe::App for CramApp {
                             if prev_count != new_count || sync_completed {
                                 self.reload_decks();
                             }
+                        }
+                        View::Stats => {
+                            StatsView::show(ui, &self.study_stats);
                         }
                         View::SessionSummary {
                             deck_name,
