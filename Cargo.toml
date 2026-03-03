@@ -29,6 +29,7 @@ egui = "0.33"
 image = { version = "0.25", features = ["png"] }
 insta = "1"
 owo-colors = "4"
+proptest = "1"
 regex = "1"
 rfd = "0.15"
 serde = { version = "1", features = ["derive"] }
