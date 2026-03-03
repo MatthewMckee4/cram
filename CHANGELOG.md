@@ -4,7 +4,7 @@
 
 ### New Features
 
-- feat: replace light/dark toggle with selectable theme system ([#74](https://github.com/MatthewMckee4/cram/pull/74))
+- Replace light/dark toggle with selectable theme system ([#74](https://github.com/MatthewMckee4/cram/pull/74))
 
 ### Contributors
 
