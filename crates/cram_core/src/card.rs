@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -6,6 +7,32 @@ pub struct Card {
     id: Uuid,
     front: String,
     back: String,
+    #[serde(default)]
+    review: ReviewState,
+}
+
+/// Spaced-repetition scheduling state for a single card (SM-2 algorithm).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReviewState {
+    /// Number of consecutive correct reviews.
+    pub repetitions: u32,
+    /// Inter-repetition interval in days.
+    pub interval: u32,
+    /// Ease factor (minimum 1.3). Default 2.5.
+    pub ease_factor: f64,
+    /// Date the card is next due for review. `None` means never reviewed.
+    pub due_date: Option<NaiveDate>,
+}
+
+impl Default for ReviewState {
+    fn default() -> Self {
+        Self {
+            repetitions: 0,
+            interval: 0,
+            ease_factor: 2.5,
+            due_date: None,
+        }
+    }
 }
 
 impl Card {
@@ -14,6 +41,7 @@ impl Card {
             id: Uuid::new_v4(),
             front: front.into(),
             back: back.into(),
+            review: ReviewState::default(),
         }
     }
 
@@ -35,6 +63,14 @@ impl Card {
 
     pub fn back_mut(&mut self) -> &mut String {
         &mut self.back
+    }
+
+    pub fn review(&self) -> &ReviewState {
+        &self.review
+    }
+
+    pub fn review_mut(&mut self) -> &mut ReviewState {
+        &mut self.review
     }
 }
 
