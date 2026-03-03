@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::mpsc;
 
 use cram_store::MultiStore;
 use cram_store::SourceKind;
 use cram_store::git::{self, SyncResult};
-use egui::Ui;
+use egui::{Context, Ui};
 
 use crate::style;
 
@@ -12,6 +13,71 @@ use crate::style;
 pub struct SourceStatus {
     pub path: PathBuf,
     pub message: Option<String>,
+}
+
+/// Tracks an in-flight background sync operation.
+pub struct SyncTask {
+    receiver: mpsc::Receiver<Vec<(PathBuf, SyncResult)>>,
+}
+
+impl SyncTask {
+    /// Spawn a background thread to sync a single git root.
+    fn spawn_single(root: PathBuf, ctx: Context) -> Self {
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let result = git::pull(&root);
+            let _ = tx.send(vec![(root, result)]);
+            ctx.request_repaint();
+        });
+        Self { receiver: rx }
+    }
+
+    /// Spawn a background thread to sync all linked sources.
+    fn spawn_all(multi_store: &MultiStore, ctx: Context) -> Self {
+        let sources: Vec<(PathBuf, SourceKind)> = multi_store
+            .sources()
+            .source
+            .iter()
+            .map(|s| (s.path.clone(), s.kind))
+            .collect();
+
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let results = sync_sources(&sources);
+            let _ = tx.send(results);
+            ctx.request_repaint();
+        });
+        Self { receiver: rx }
+    }
+
+    /// Non-blocking check for completion. Returns results if done.
+    fn try_recv(&self) -> Option<Vec<(PathBuf, SyncResult)>> {
+        self.receiver.try_recv().ok()
+    }
+}
+
+/// Perform git sync on a list of sources, deduplicating by git root.
+/// This runs synchronously and is meant to be called from a background thread.
+fn sync_sources(sources: &[(PathBuf, SourceKind)]) -> Vec<(PathBuf, SyncResult)> {
+    let mut seen = std::collections::HashSet::new();
+    let mut results = Vec::new();
+
+    for (path, kind) in sources {
+        let search_path = match kind {
+            SourceKind::Folder => path.clone(),
+            SourceKind::File => path
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| path.clone()),
+        };
+        let sync_target = git::find_git_root(&search_path).unwrap_or_else(|| search_path.clone());
+        if seen.insert(sync_target.clone()) {
+            let result = git::pull(&search_path);
+            results.push((sync_target, result));
+        }
+    }
+
+    results
 }
 
 /// A single source entry with its kind for display purposes.
@@ -74,10 +140,14 @@ pub struct SourcesView;
 impl SourcesView {
     pub fn show(
         ui: &mut Ui,
+        ctx: &Context,
         multi_store: &mut MultiStore,
         sync_statuses: &mut Vec<SourceStatus>,
+        sync_task: &mut Option<SyncTask>,
         error_message: &mut Option<String>,
-    ) {
+    ) -> bool {
+        let sync_completed = poll_sync_task(sync_task, sync_statuses);
+
         ui.vertical(|ui| {
             ui.add_space(style::SECTION_SPACING);
             ui.horizontal(|ui| {
@@ -130,10 +200,11 @@ impl SourcesView {
                 .collect();
             let groups = build_groups(&source_entries);
             let mut unlink_path: Option<PathBuf> = None;
+            let syncing = sync_task.is_some();
 
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for group in &groups {
-                    show_group(ui, group, sync_statuses, &mut unlink_path);
+                    show_group(ui, ctx, group, sync_statuses, sync_task, &mut unlink_path);
                     ui.add_space(style::ITEM_SPACING);
                 }
 
@@ -149,11 +220,14 @@ impl SourcesView {
                         };
                         git::find_git_root(&search).is_some()
                     });
-                    if has_syncable && ui.add(style::accent_button("Sync All")).clicked() {
-                        let results = multi_store.sync_all();
-                        for (path, result) in results {
-                            let msg = sync_result_message(&result);
-                            update_status(sync_statuses, path, msg);
+                    if has_syncable {
+                        if syncing {
+                            ui.horizontal(|ui| {
+                                ui.spinner();
+                                ui.label("Syncing...");
+                            });
+                        } else if ui.add(style::accent_button("Sync All")).clicked() {
+                            *sync_task = Some(SyncTask::spawn_all(multi_store, ctx.clone()));
                         }
                     }
                 });
@@ -166,7 +240,26 @@ impl SourcesView {
                 sync_statuses.retain(|s| s.path != path);
             }
         });
+
+        sync_completed
     }
+}
+
+/// Poll the sync task for completion and apply results.
+/// Returns `true` if a sync operation just completed.
+fn poll_sync_task(sync_task: &mut Option<SyncTask>, sync_statuses: &mut Vec<SourceStatus>) -> bool {
+    let Some(task) = sync_task.as_ref() else {
+        return false;
+    };
+    if let Some(results) = task.try_recv() {
+        for (path, result) in results {
+            let msg = sync_result_message(&result);
+            update_status(sync_statuses, path, msg);
+        }
+        *sync_task = None;
+        return true;
+    }
+    false
 }
 
 fn link_source(
@@ -191,8 +284,10 @@ fn link_source(
 
 fn show_group(
     ui: &mut Ui,
+    ctx: &Context,
     group: &SourceGroup,
-    sync_statuses: &mut Vec<SourceStatus>,
+    sync_statuses: &[SourceStatus],
+    sync_task: &mut Option<SyncTask>,
     unlink_path: &mut Option<PathBuf>,
 ) {
     style::card_frame(ui).show(ui, |ui| {
@@ -218,10 +313,11 @@ fn show_group(
                         );
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add(style::accent_button("Sync")).clicked() {
-                            let result = git::pull(root);
-                            let msg = sync_result_message(&result);
-                            update_status(sync_statuses, root.clone(), msg);
+                        let syncing = sync_task.is_some();
+                        if syncing {
+                            ui.spinner();
+                        } else if ui.add(style::accent_button("Sync")).clicked() {
+                            *sync_task = Some(SyncTask::spawn_single(root.clone(), ctx.clone()));
                         }
                     });
                 });
@@ -386,4 +482,92 @@ fn shorten_home(path: &std::path::Path) -> String {
         return format!("~/{}", rest.display());
     }
     path.display().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sync_result_message_formats_correctly() {
+        assert_eq!(
+            sync_result_message(&SyncResult::AlreadyUpToDate),
+            "Already up to date"
+        );
+        assert_eq!(
+            sync_result_message(&SyncResult::Pulled("abc".to_string())),
+            "Pulled: abc"
+        );
+        assert_eq!(
+            sync_result_message(&SyncResult::NotAGitRepo),
+            "Not a git repo"
+        );
+        assert_eq!(
+            sync_result_message(&SyncResult::Error("fail".to_string())),
+            "Error: fail"
+        );
+    }
+
+    #[test]
+    fn poll_sync_task_clears_when_done() {
+        let (tx, rx) = mpsc::channel();
+        let mut task = Some(SyncTask { receiver: rx });
+        let mut statuses = Vec::new();
+
+        assert!(!poll_sync_task(&mut task, &mut statuses));
+        assert!(task.is_some(), "task should still be pending");
+
+        tx.send(vec![(PathBuf::from("/repo"), SyncResult::AlreadyUpToDate)])
+            .expect("send");
+
+        assert!(poll_sync_task(&mut task, &mut statuses));
+        assert!(task.is_none(), "task should be cleared after completion");
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].path, PathBuf::from("/repo"));
+        assert_eq!(statuses[0].message.as_deref(), Some("Already up to date"));
+    }
+
+    #[test]
+    fn poll_sync_task_noop_when_none() {
+        let mut task: Option<SyncTask> = None;
+        let mut statuses = Vec::new();
+        assert!(!poll_sync_task(&mut task, &mut statuses));
+        assert!(task.is_none());
+        assert!(statuses.is_empty());
+    }
+
+    #[test]
+    fn update_status_creates_new_entry() {
+        let mut statuses = Vec::new();
+        update_status(&mut statuses, PathBuf::from("/a"), "ok".to_string());
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].message.as_deref(), Some("ok"));
+    }
+
+    #[test]
+    fn update_status_updates_existing_entry() {
+        let mut statuses = vec![SourceStatus {
+            path: PathBuf::from("/a"),
+            message: Some("old".to_string()),
+        }];
+        update_status(&mut statuses, PathBuf::from("/a"), "new".to_string());
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].message.as_deref(), Some("new"));
+    }
+
+    #[test]
+    fn sync_sources_deduplicates_by_git_root() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        std::fs::create_dir_all(root.join(".git")).expect("mkdir .git");
+        let sub_a = root.join("a");
+        let sub_b = root.join("b");
+        std::fs::create_dir_all(&sub_a).expect("mkdir a");
+        std::fs::create_dir_all(&sub_b).expect("mkdir b");
+
+        let sources = vec![(sub_a, SourceKind::Folder), (sub_b, SourceKind::Folder)];
+        let results = sync_sources(&sources);
+        assert_eq!(results.len(), 1, "should deduplicate to a single git root");
+        assert_eq!(results[0].0, root.to_path_buf());
+    }
 }

@@ -8,7 +8,7 @@ use eframe::CreationContext;
 use egui::Context;
 
 use crate::editor::{EditorContext, EditorView};
-use crate::sources::{SourceStatus, SourcesView};
+use crate::sources::{SourceStatus, SourcesView, SyncTask};
 use crate::study::{StudyContext, StudyView};
 use crate::style;
 use crate::texture_cache::TextureCache;
@@ -53,6 +53,7 @@ pub struct CramApp {
     preview_debounce: PreviewDebounce,
     fullscreen_preview: Option<String>,
     sync_statuses: Vec<SourceStatus>,
+    sync_task: Option<SyncTask>,
     save_feedback: Option<std::time::Instant>,
     confirm_delete_deck: Option<String>,
     last_deck: Option<String>,
@@ -140,6 +141,7 @@ impl CramApp {
             preview_debounce: PreviewDebounce::default(),
             fullscreen_preview: None,
             sync_statuses: Vec::new(),
+            sync_task: None,
             save_feedback: None,
             confirm_delete_deck: None,
             last_deck: ui_state.last_deck,
@@ -366,14 +368,16 @@ impl eframe::App for CramApp {
                         }
                         View::Sources => {
                             let prev_count = self.multi_store.sources().source.len();
-                            SourcesView::show(
+                            let sync_completed = SourcesView::show(
                                 ui,
+                                ctx,
                                 &mut self.multi_store,
                                 &mut self.sync_statuses,
+                                &mut self.sync_task,
                                 &mut self.error_message,
                             );
                             let new_count = self.multi_store.sources().source.len();
-                            if prev_count != new_count {
+                            if prev_count != new_count || sync_completed {
                                 self.reload_decks();
                             }
                         }

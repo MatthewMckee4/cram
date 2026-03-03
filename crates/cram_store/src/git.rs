@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Result of a git sync operation.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SyncResult {
     Pulled(String),
     AlreadyUpToDate,
