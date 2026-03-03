@@ -25,11 +25,6 @@ impl Theme {
         Theme::GruvboxDark,
     ];
 
-    /// Look up a theme by its display name (e.g. "Dark", "Solarized Light").
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|t| t.name() == name)
-    }
-
     pub fn name(self) -> &'static str {
         match self {
             Theme::Dark => "Dark",
@@ -128,25 +123,6 @@ struct Palette {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn from_name_finds_all_themes() {
-        for theme in Theme::ALL {
-            assert_eq!(Theme::from_name(theme.name()), Some(theme));
-        }
-    }
-
-    #[test]
-    fn from_name_returns_none_for_unknown() {
-        assert_eq!(Theme::from_name("Nonexistent"), None);
-    }
-
-    #[test]
-    fn name_roundtrips_through_from_name() {
-        let theme = Theme::SolarizedDark;
-        let name = theme.name();
-        assert_eq!(Theme::from_name(name), Some(theme));
-    }
 
     #[test]
     fn default_is_dark() {

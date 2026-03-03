@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use cram_core::Deck;
-use cram_store::{DeckSource, MultiStore, Store, UiState};
+use cram_store::{DeckSource, MultiStore, Store};
+
+use crate::ui_state::UiState;
 use eframe::CreationContext;
 use egui::Context;
 
@@ -118,11 +120,7 @@ impl CramApp {
         let decks = multi_store.load_all_decks().unwrap_or_default();
 
         let ui_state = UiState::load(multi_store.config_dir()).unwrap_or_default();
-        let theme = ui_state
-            .theme
-            .as_deref()
-            .and_then(Theme::from_name)
-            .unwrap_or_default();
+        let theme = ui_state.theme.unwrap_or_default();
         cc.egui_ctx.set_visuals(theme.visuals());
 
         let mut app = Self {
@@ -186,7 +184,7 @@ impl CramApp {
     /// Persist current UI state (theme, last deck) to `ui_state.toml`.
     fn save_ui_state(&self) {
         let state = UiState {
-            theme: Some(self.theme.name().to_string()),
+            theme: Some(self.theme),
             last_deck: self.last_deck.clone(),
         };
         if let Err(e) = state.save(self.multi_store.config_dir()) {

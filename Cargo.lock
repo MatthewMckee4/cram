@@ -1369,6 +1369,7 @@ dependencies = [
 name = "cram_ui"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
  "cram_core",
  "cram_render",
  "cram_store",
@@ -1378,6 +1379,8 @@ dependencies = [
  "image",
  "rfd",
  "serde",
+ "tempfile",
+ "toml 1.0.3+spec-1.1.0",
  "tracing",
 ]
 

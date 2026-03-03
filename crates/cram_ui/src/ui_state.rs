@@ -3,12 +3,13 @@ use std::path::Path;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+use crate::theme::Theme;
+
 /// Persisted UI state, stored as `ui_state.toml` in the config directory.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UiState {
-    /// The name of the selected theme (e.g. "Dark", "Nord").
     #[serde(default)]
-    pub theme: Option<String>,
+    pub theme: Option<Theme>,
 
     /// The name of the last-viewed deck.
     #[serde(default)]
@@ -54,7 +55,7 @@ mod tests {
     fn save_and_load_roundtrip() {
         let dir = tempfile::tempdir().expect("tempdir");
         let state = UiState {
-            theme: Some("Nord".to_string()),
+            theme: Some(Theme::Nord),
             last_deck: Some("Rust Basics".to_string()),
         };
         state.save(dir.path()).expect("save");
@@ -80,7 +81,7 @@ mod tests {
     fn save_and_load_with_no_last_deck() {
         let dir = tempfile::tempdir().expect("tempdir");
         let state = UiState {
-            theme: Some("Dracula".to_string()),
+            theme: Some(Theme::Dracula),
             last_deck: None,
         };
         state.save(dir.path()).expect("save");
@@ -94,7 +95,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let nested = dir.path().join("nested").join("config");
         let state = UiState {
-            theme: Some("Dark".to_string()),
+            theme: Some(Theme::Dark),
             last_deck: None,
         };
         state.save(&nested).expect("save");
@@ -105,13 +106,13 @@ mod tests {
     fn overwrite_preserves_latest() {
         let dir = tempfile::tempdir().expect("tempdir");
         let first = UiState {
-            theme: Some("Dark".to_string()),
+            theme: Some(Theme::Dark),
             last_deck: Some("Old Deck".to_string()),
         };
         first.save(dir.path()).expect("save");
 
         let second = UiState {
-            theme: Some("Light".to_string()),
+            theme: Some(Theme::Light),
             last_deck: Some("New Deck".to_string()),
         };
         second.save(dir.path()).expect("save");
@@ -123,10 +124,10 @@ mod tests {
     #[test]
     fn load_partial_toml_uses_defaults_for_missing_fields() {
         let dir = tempfile::tempdir().expect("tempdir");
-        std::fs::write(dir.path().join("ui_state.toml"), "theme = \"Nord\"\n").expect("write");
+        std::fs::write(dir.path().join("ui_state.toml"), "theme = \"nord\"\n").expect("write");
 
         let state = UiState::load(dir.path()).expect("load");
-        assert_eq!(state.theme.as_deref(), Some("Nord"));
+        assert_eq!(state.theme, Some(Theme::Nord));
         assert!(state.last_deck.is_none());
     }
 
