@@ -5,10 +5,12 @@ use cram_store::{DeckSource, MultiStore, Store};
 use eframe::CreationContext;
 use egui::Context;
 
+use crate::editor::{EditorContext, EditorView};
 use crate::sources::{SourceStatus, SourcesView};
+use crate::study::{StudyContext, StudyView};
 use crate::style;
 use crate::theme::Theme;
-use crate::{deck_list::DeckListView, editor::EditorView, search::SearchView, study::StudyView};
+use crate::{deck_list::DeckListView, search::SearchView};
 
 #[derive(Default, Clone)]
 pub enum View {
@@ -263,19 +265,18 @@ impl eframe::App for CramApp {
                             shuffled_indices,
                         } => {
                             let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
-                            StudyView::show(
-                                ui,
-                                ctx,
-                                &deck_only,
-                                &deck_name,
-                                &mut card_index,
-                                &mut revealed,
-                                &mut self.texture_cache,
-                                &mut self.view,
-                                &mut self.session_reviewed,
-                                &mut self.session_start,
-                                &shuffled_indices,
-                            );
+                            let mut sc = StudyContext {
+                                decks: &deck_only,
+                                deck_name: &deck_name,
+                                card_index: &mut card_index,
+                                revealed: &mut revealed,
+                                texture_cache: &mut self.texture_cache,
+                                view: &mut self.view,
+                                session_reviewed: &mut self.session_reviewed,
+                                session_start: &mut self.session_start,
+                                shuffled_indices: &shuffled_indices,
+                            };
+                            StudyView::show(ui, ctx, &mut sc);
                             if matches!(self.view, View::Study { .. }) {
                                 self.view = View::Study {
                                     deck_name,
@@ -297,19 +298,18 @@ impl eframe::App for CramApp {
                                 .unwrap_or(DeckSource::Local);
                             let mut deck_only: Vec<Deck> =
                                 self.decks.iter().map(|(d, _)| d.clone()).collect();
-                            EditorView::show(
-                                ui,
-                                ctx,
-                                &mut deck_only,
-                                &deck_name,
+                            let mut ec = EditorContext {
+                                decks: &mut deck_only,
+                                deck_name: &deck_name,
                                 card_index,
-                                &self.multi_store,
-                                &source,
-                                &mut self.texture_cache,
-                                &mut self.preview_debounce,
-                                &mut self.fullscreen_preview,
-                                &mut self.save_feedback,
-                            );
+                                multi_store: &self.multi_store,
+                                deck_source: &source,
+                                texture_cache: &mut self.texture_cache,
+                                preview_debounce: &mut self.preview_debounce,
+                                fullscreen_preview: &mut self.fullscreen_preview,
+                                save_feedback: &mut self.save_feedback,
+                            };
+                            EditorView::show(ui, ctx, &mut ec);
                             // Write modified decks back
                             for (i, (deck, _src)) in self.decks.iter_mut().enumerate() {
                                 if i < deck_only.len() {

@@ -4,33 +4,32 @@ use egui::{Context, Ui};
 use crate::app::View;
 use crate::style;
 
+pub struct StudyContext<'a> {
+    pub decks: &'a [&'a Deck],
+    pub deck_name: &'a str,
+    pub card_index: &'a mut usize,
+    pub revealed: &'a mut bool,
+    pub texture_cache: &'a mut std::collections::HashMap<String, egui::TextureHandle>,
+    pub view: &'a mut View,
+    pub session_reviewed: &'a mut u32,
+    pub session_start: &'a mut Option<std::time::Instant>,
+    pub shuffled_indices: &'a [usize],
+}
+
 pub struct StudyView;
 
 impl StudyView {
-    #[expect(clippy::too_many_arguments)]
-    pub fn show(
-        ui: &mut Ui,
-        ctx: &Context,
-        decks: &[&Deck],
-        deck_name: &str,
-        card_index: &mut usize,
-        revealed: &mut bool,
-        texture_cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
-        view: &mut View,
-        session_reviewed: &mut u32,
-        session_start: &mut Option<std::time::Instant>,
-        shuffled_indices: &[usize],
-    ) {
-        if session_start.is_none() {
-            *session_start = Some(std::time::Instant::now());
+    pub fn show(ui: &mut Ui, ctx: &Context, sc: &mut StudyContext<'_>) {
+        if sc.session_start.is_none() {
+            *sc.session_start = Some(std::time::Instant::now());
         }
 
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            *view = View::DeckList;
+            *sc.view = View::DeckList;
             return;
         }
 
-        let Some(deck) = decks.iter().find(|d| d.name() == deck_name) else {
+        let Some(deck) = sc.decks.iter().find(|d| d.name() == sc.deck_name) else {
             ui.label("Deck not found.");
             return;
         };
@@ -45,14 +44,14 @@ impl StudyView {
             return;
         }
 
-        let total = shuffled_indices.len();
-        let current_idx = (*card_index).min(total.saturating_sub(1));
-        let card_pos = shuffled_indices[current_idx];
+        let total = sc.shuffled_indices.len();
+        let current_idx = (*sc.card_index).min(total.saturating_sub(1));
+        let card_pos = sc.shuffled_indices[current_idx];
         let progress = format!("{}/{}", current_idx + 1, total);
 
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                ui.label(format!("Studying: {deck_name}"));
+                ui.label(format!("Studying: {}", sc.deck_name));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(&progress);
                 });
@@ -65,7 +64,7 @@ impl StudyView {
             ui.separator();
             ui.add_space(24.0);
 
-            let card_text = if *revealed {
+            let card_text = if *sc.revealed {
                 deck.cards()[card_pos].back().to_string()
             } else {
                 deck.cards()[card_pos].front().to_string()
@@ -78,7 +77,7 @@ impl StudyView {
 
             let dark_mode = ui.visuals().dark_mode;
             let render_result =
-                get_or_render(ctx, &card_source, &card_source, texture_cache, dark_mode);
+                get_or_render(ctx, &card_source, &card_source, sc.texture_cache, dark_mode);
 
             style::card_frame(ui).inner_margin(24.0).show(ui, |ui| {
                 ui.set_min_size(egui::vec2(ui.available_width(), 320.0));
@@ -96,13 +95,13 @@ impl StudyView {
 
             ui.add_space(24.0);
 
-            if !*revealed {
+            if !*sc.revealed {
                 ui.vertical_centered(|ui| {
                     let btn = style::accent_button("Show Answer  [Space]")
                         .min_size(egui::vec2(240.0, 44.0))
                         .corner_radius(8.0);
                     if ui.add(btn).clicked() || ui.input(|i| i.key_pressed(egui::Key::Space)) {
-                        *revealed = true;
+                        *sc.revealed = true;
                     }
                 });
             } else {
@@ -111,21 +110,22 @@ impl StudyView {
                         .min_size(egui::vec2(240.0, 44.0))
                         .corner_radius(8.0);
                     if ui.add(btn).clicked() || ui.input(|i| i.key_pressed(egui::Key::Space)) {
-                        *session_reviewed += 1;
-                        let next = *card_index + 1;
+                        *sc.session_reviewed += 1;
+                        let next = *sc.card_index + 1;
                         if next >= total {
-                            let elapsed = session_start.map(|s| s.elapsed().as_secs()).unwrap_or(0);
-                            *view = View::SessionSummary {
-                                deck_name: deck_name.to_string(),
-                                cards_reviewed: *session_reviewed,
+                            let elapsed =
+                                sc.session_start.map(|s| s.elapsed().as_secs()).unwrap_or(0);
+                            *sc.view = View::SessionSummary {
+                                deck_name: sc.deck_name.to_string(),
+                                cards_reviewed: *sc.session_reviewed,
                                 elapsed_secs: elapsed,
                             };
-                            *session_reviewed = 0;
-                            *session_start = None;
+                            *sc.session_reviewed = 0;
+                            *sc.session_start = None;
                         } else {
-                            *card_index = next;
+                            *sc.card_index = next;
                         }
-                        *revealed = false;
+                        *sc.revealed = false;
                     }
                 });
             }
