@@ -3,13 +3,14 @@ use egui::{Context, Ui};
 
 use crate::app::View;
 use crate::style;
+use crate::texture_cache::TextureCache;
 
 pub struct StudyContext<'a> {
     pub decks: &'a [&'a Deck],
     pub deck_name: &'a str,
     pub card_index: &'a mut usize,
     pub revealed: &'a mut bool,
-    pub texture_cache: &'a mut std::collections::HashMap<String, egui::TextureHandle>,
+    pub texture_cache: &'a mut TextureCache,
     pub view: &'a mut View,
     pub session_reviewed: &'a mut u32,
     pub session_start: &'a mut Option<std::time::Instant>,
@@ -77,7 +78,8 @@ impl StudyView {
 
             let dark_mode = ui.visuals().dark_mode;
             let render_result =
-                get_or_render(ctx, &card_source, &card_source, sc.texture_cache, dark_mode);
+                sc.texture_cache
+                    .get_or_render(ctx, &card_source, &card_source, dark_mode);
 
             style::card_frame(ui).inner_margin(24.0).show(ui, |ui| {
                 ui.set_min_size(egui::vec2(ui.available_width(), 320.0));
@@ -131,24 +133,4 @@ impl StudyView {
             }
         });
     }
-}
-
-fn get_or_render(
-    ctx: &Context,
-    key: &str,
-    source: &str,
-    cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
-    dark_mode: bool,
-) -> Result<egui::TextureHandle, String> {
-    if let Some(h) = cache.get(key) {
-        return Ok(h.clone());
-    }
-    let png = cram_render::render(source, dark_mode).map_err(|e| e.to_string())?;
-    let img = image::load_from_memory(&png).map_err(|e| e.to_string())?;
-    let rgba = img.to_rgba8();
-    let (w, h) = rgba.dimensions();
-    let color_image = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &rgba);
-    let handle = ctx.load_texture(key, color_image, egui::TextureOptions::LINEAR);
-    cache.insert(key.to_string(), handle.clone());
-    Ok(handle)
 }
