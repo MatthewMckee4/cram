@@ -24,6 +24,7 @@ pub enum View {
         card_index: usize,
         revealed: bool,
         shuffled_indices: Vec<usize>,
+        study_mode: StudyMode,
     },
     Editor {
         deck_name: String,
@@ -37,6 +38,13 @@ pub enum View {
         cards_reviewed: u32,
         elapsed_secs: u64,
     },
+}
+
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub enum StudyMode {
+    #[default]
+    Random,
+    SpacedRepetition,
 }
 
 pub struct CramApp {
@@ -297,10 +305,12 @@ impl eframe::App for CramApp {
                             mut card_index,
                             mut revealed,
                             shuffled_indices,
+                            study_mode,
                         } => {
-                            let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
+                            let mut deck_only: Vec<Deck> =
+                                self.decks.iter().map(|(d, _)| d.clone()).collect();
                             let mut sc = StudyContext {
-                                decks: &deck_only,
+                                decks: &mut deck_only,
                                 deck_name: &deck_name,
                                 card_index: &mut card_index,
                                 revealed: &mut revealed,
@@ -309,14 +319,26 @@ impl eframe::App for CramApp {
                                 session_reviewed: &mut self.session_reviewed,
                                 session_start: &mut self.session_start,
                                 shuffled_indices: &shuffled_indices,
+                                study_mode,
                             };
                             StudyView::show(ui, ctx, &mut sc);
+                            for (i, (deck, _)) in self.decks.iter_mut().enumerate() {
+                                if i < deck_only.len() {
+                                    *deck = deck_only[i].clone();
+                                }
+                            }
+                            if let Some((deck, source)) =
+                                self.decks.iter().find(|(d, _)| d.name() == deck_name)
+                            {
+                                let _ = self.multi_store.save_deck(deck, source);
+                            }
                             if matches!(self.view, View::Study { .. }) {
                                 self.view = View::Study {
                                     deck_name,
                                     card_index,
                                     revealed,
                                     shuffled_indices,
+                                    study_mode,
                                 };
                             }
                         }

@@ -1,8 +1,9 @@
-use cram_core::Deck;
+use chrono::Utc;
+use cram_core::{Deck, sm2};
 use cram_store::DeckSource;
 use egui::{Context, Ui};
 
-use crate::app::View;
+use crate::app::{StudyMode, View};
 use crate::style;
 
 pub struct DeckListView;
@@ -96,6 +97,16 @@ impl DeckListView {
                                     );
                                 }
                                 ui.label(format!("{total} cards"));
+
+                                let due_count = due_card_count(deck);
+                                if due_count > 0 {
+                                    ui.label(
+                                        egui::RichText::new(format!("{due_count} due"))
+                                            .small()
+                                            .color(style::ACCENT),
+                                    );
+                                }
+
                                 ui.add_space(12.0);
                                 ui.horizontal(|ui| {
                                     if ui.add(style::accent_button("Study")).clicked() {
@@ -104,7 +115,26 @@ impl DeckListView {
                                             card_index: 0,
                                             revealed: false,
                                             shuffled_indices: shuffled_indices(total),
+                                            study_mode: StudyMode::Random,
                                         };
+                                    }
+                                    if ui
+                                        .add(style::secondary_button("Spaced"))
+                                        .on_hover_text(
+                                            "Study cards due for review using spaced repetition",
+                                        )
+                                        .clicked()
+                                    {
+                                        let indices = due_indices(deck);
+                                        if !indices.is_empty() {
+                                            *view = View::Study {
+                                                deck_name: deck.name().to_string(),
+                                                card_index: 0,
+                                                revealed: false,
+                                                shuffled_indices: indices,
+                                                study_mode: StudyMode::SpacedRepetition,
+                                            };
+                                        }
                                     }
                                     if ui.add(style::secondary_button("Edit")).clicked() {
                                         *view = View::Editor {
@@ -148,4 +178,24 @@ fn shuffled_indices(count: usize) -> Vec<usize> {
         indices.swap(i, j);
     }
     indices
+}
+
+/// Return indices of cards that are due for review today.
+fn due_indices(deck: &Deck) -> Vec<usize> {
+    let today = Utc::now().date_naive();
+    deck.cards()
+        .iter()
+        .enumerate()
+        .filter(|(_, card)| sm2::is_due(card.review(), today))
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// Count how many cards in a deck are due for review today.
+fn due_card_count(deck: &Deck) -> usize {
+    let today = Utc::now().date_naive();
+    deck.cards()
+        .iter()
+        .filter(|card| sm2::is_due(card.review(), today))
+        .count()
 }
