@@ -7,6 +7,7 @@ use egui::Context;
 
 use crate::sources::{SourceStatus, SourcesView};
 use crate::style;
+use crate::theme::Theme;
 use crate::{deck_list::DeckListView, editor::EditorView, search::SearchView, study::StudyView};
 
 #[derive(Default, Clone)]
@@ -40,7 +41,7 @@ pub struct CramApp {
     new_deck_name: String,
     texture_cache: std::collections::HashMap<String, egui::TextureHandle>,
     error_message: Option<String>,
-    dark_mode: bool,
+    theme: Theme,
     search_query: String,
     session_start: Option<std::time::Instant>,
     session_reviewed: u32,
@@ -121,7 +122,7 @@ impl CramApp {
             new_deck_name: String::new(),
             texture_cache: std::collections::HashMap::new(),
             error_message: None,
-            dark_mode: true,
+            theme: Theme::Dark,
             search_query: String::new(),
             session_start: None,
             session_reviewed: 0,
@@ -194,22 +195,24 @@ impl eframe::App for CramApp {
                         }
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let icon = if self.dark_mode { "☀" } else { "🌙" };
-                        if ui.button(icon).clicked() {
-                            self.dark_mode = !self.dark_mode;
+                        let prev = self.theme;
+                        egui::ComboBox::from_id_salt("theme_picker")
+                            .selected_text(self.theme.name())
+                            .show_ui(ui, |ui| {
+                                for t in Theme::ALL {
+                                    ui.selectable_value(&mut self.theme, t, t.name());
+                                }
+                            });
+                        if self.theme != prev {
+                            ctx.set_visuals(self.theme.visuals());
                             self.texture_cache.clear();
-                            if self.dark_mode {
-                                ctx.set_visuals(egui::Visuals::dark());
-                            } else {
-                                ctx.set_visuals(egui::Visuals::light());
-                            }
                         }
                     });
                 });
             });
 
         if let Some(err) = &self.error_message.clone() {
-            let bg = if self.dark_mode {
+            let bg = if self.theme.is_dark() {
                 egui::Color32::from_rgb(80, 20, 20)
             } else {
                 egui::Color32::from_rgb(254, 226, 226)
