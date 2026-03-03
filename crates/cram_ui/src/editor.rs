@@ -5,6 +5,7 @@ use egui::{Context, Ui};
 use crate::app::PreviewDebounce;
 use crate::highlight::typst_layout_job;
 use crate::style;
+use crate::texture_cache::TextureCache;
 
 pub struct EditorContext<'a> {
     pub decks: &'a mut [Deck],
@@ -12,7 +13,7 @@ pub struct EditorContext<'a> {
     pub card_index: Option<usize>,
     pub multi_store: &'a MultiStore,
     pub deck_source: &'a DeckSource,
-    pub texture_cache: &'a mut std::collections::HashMap<String, egui::TextureHandle>,
+    pub texture_cache: &'a mut TextureCache,
     pub preview_debounce: &'a mut PreviewDebounce,
     pub fullscreen_preview: &'a mut Option<String>,
     pub save_feedback: &'a mut Option<std::time::Instant>,
@@ -218,11 +219,10 @@ impl EditorView {
                                                 with_preamble(deck.preamble(), &debounced_front);
                                             let front_key =
                                                 format!("editor-front-{i}-{front_source}");
-                                            match get_or_render(
+                                            match ec.texture_cache.get_or_render(
                                                 ctx,
                                                 &front_key,
                                                 &front_source,
-                                                ec.texture_cache,
                                                 dark_mode,
                                             ) {
                                                 Ok(tex) => {
@@ -251,11 +251,10 @@ impl EditorView {
                                             let back_source =
                                                 with_preamble(deck.preamble(), &debounced_back);
                                             let back_key = format!("editor-back-{i}-{back_source}");
-                                            match get_or_render(
+                                            match ec.texture_cache.get_or_render(
                                                 ctx,
                                                 &back_key,
                                                 &back_source,
-                                                ec.texture_cache,
                                                 dark_mode,
                                             ) {
                                                 Ok(tex) => {
@@ -304,24 +303,4 @@ fn with_preamble(preamble: &str, body: &str) -> String {
     } else {
         format!("{preamble}\n{body}")
     }
-}
-
-fn get_or_render(
-    ctx: &Context,
-    key: &str,
-    source: &str,
-    cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
-    dark_mode: bool,
-) -> Result<egui::TextureHandle, String> {
-    if let Some(h) = cache.get(key) {
-        return Ok(h.clone());
-    }
-    let png = cram_render::render(source, dark_mode).map_err(|e| e.to_string())?;
-    let img = image::load_from_memory(&png).map_err(|e| e.to_string())?;
-    let rgba = img.to_rgba8();
-    let (w, h) = rgba.dimensions();
-    let ci = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &rgba);
-    let handle = ctx.load_texture(key, ci, egui::TextureOptions::LINEAR);
-    cache.insert(key.to_string(), handle.clone());
-    Ok(handle)
 }

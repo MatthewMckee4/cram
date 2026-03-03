@@ -11,6 +11,7 @@ use crate::editor::{EditorContext, EditorView};
 use crate::sources::{SourceStatus, SourcesView};
 use crate::study::{StudyContext, StudyView};
 use crate::style;
+use crate::texture_cache::TextureCache;
 use crate::theme::Theme;
 use crate::{deck_list::DeckListView, search::SearchView};
 
@@ -43,7 +44,7 @@ pub struct CramApp {
     decks: Vec<(Deck, DeckSource)>,
     view: View,
     new_deck_name: String,
-    texture_cache: std::collections::HashMap<String, egui::TextureHandle>,
+    texture_cache: TextureCache,
     error_message: Option<String>,
     theme: Theme,
     search_query: String,
@@ -130,7 +131,7 @@ impl CramApp {
             decks,
             view: View::DeckList,
             new_deck_name: String::new(),
-            texture_cache: std::collections::HashMap::new(),
+            texture_cache: TextureCache::new(),
             error_message: None,
             theme,
             search_query: String::new(),
@@ -494,7 +495,10 @@ impl CramApp {
                 egui::ScrollArea::both().show(ui, |ui| {
                     let key = format!("fullscreen-{source}");
                     let dark_mode = ui.visuals().dark_mode;
-                    match get_or_render(ctx, &key, &source, &mut self.texture_cache, dark_mode) {
+                    match self
+                        .texture_cache
+                        .get_or_render(ctx, &key, &source, dark_mode)
+                    {
                         Ok(tex) => {
                             ui.add(egui::Image::new(&tex).max_width(ui.available_width()));
                         }
@@ -505,24 +509,4 @@ impl CramApp {
                 });
             });
     }
-}
-
-fn get_or_render(
-    ctx: &Context,
-    key: &str,
-    source: &str,
-    cache: &mut std::collections::HashMap<String, egui::TextureHandle>,
-    dark_mode: bool,
-) -> Result<egui::TextureHandle, String> {
-    if let Some(h) = cache.get(key) {
-        return Ok(h.clone());
-    }
-    let png = cram_render::render(source, dark_mode).map_err(|e| e.to_string())?;
-    let img = image::load_from_memory(&png).map_err(|e| e.to_string())?;
-    let rgba = img.to_rgba8();
-    let (w, h) = rgba.dimensions();
-    let ci = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &rgba);
-    let handle = ctx.load_texture(key, ci, egui::TextureOptions::LINEAR);
-    cache.insert(key.to_string(), handle.clone());
-    Ok(handle)
 }
