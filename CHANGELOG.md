@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.0.1-alpha.3
+
+### New Features
+
+- Make Card.review an Option<ReviewState> instead of defaulting ([#106](https://github.com/MatthewMckee4/cram/pull/106))
+- Add deck export/import support ([#99](https://github.com/MatthewMckee4/cram/pull/99))
+- Improve Typst render error messages ([#96](https://github.com/MatthewMckee4/cram/pull/96))
+- Make git sync non-blocking ([#95](https://github.com/MatthewMckee4/cram/pull/95))
+- Add study session statistics ([#94](https://github.com/MatthewMckee4/cram/pull/94))
+- Wire up tag-based card filtering ([#92](https://github.com/MatthewMckee4/cram/pull/92))
+- Add spaced repetition study mode ([#91](https://github.com/MatthewMckee4/cram/pull/91))
+- persist UI state across sessions ([#90](https://github.com/MatthewMckee4/cram/pull/90))
+
+### Contributors
+
+- [@MatthewMckee4](https://github.com/MatthewMckee4)
+
 ## 0.0.1-alpha.2
 
 ### New Features
