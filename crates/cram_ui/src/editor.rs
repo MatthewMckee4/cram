@@ -1,3 +1,6 @@
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use cram_core::{Card, Deck};
 use cram_store::{DeckSource, MultiStore};
 use egui::{Context, Ui};
@@ -5,7 +8,10 @@ use egui::{Context, Ui};
 use crate::app::PreviewDebounce;
 use crate::highlight::typst_layout_job;
 use crate::style;
-use crate::texture_cache::TextureCache;
+use crate::texture_cache::{TextureCache, quantize_width};
+
+/// Estimated card body height (px) for off-screen cards with no cached measurement.
+const ESTIMATED_CARD_BODY_HEIGHT: f32 = 500.0;
 
 pub struct EditorContext<'a> {
     pub decks: &'a mut [Deck],
@@ -46,6 +52,19 @@ impl EditorView {
                     {
                         deck.cards_mut().push(Card::new("Front", "Back"));
                         let _ = ec.multi_store.save_deck(deck, ec.deck_source);
+                    }
+                    let btn_size = egui::vec2(100.0, 34.0);
+                    if ui
+                        .add(style::secondary_button("Collapse All").min_size(btn_size))
+                        .clicked()
+                    {
+                        set_all_cards_open(ui, deck.cards().len(), false);
+                    }
+                    if ui
+                        .add(style::secondary_button("Expand All").min_size(btn_size))
+                        .clicked()
+                    {
+                        set_all_cards_open(ui, deck.cards().len(), true);
                     }
                     if let Some(saved_at) = *ec.save_feedback {
                         let elapsed = saved_at.elapsed();
@@ -107,7 +126,7 @@ impl EditorView {
 
                     ui.push_id(i, |ui| {
                         style::card_frame(ui).show(ui, |ui| {
-                            let id = ui.make_persistent_id(("card", i));
+                            let id = card_collapsing_id(i);
                             let default_open = ec.card_index == Some(i);
                             let state =
                                 egui::collapsing_header::CollapsingState::load_with_default_open(
@@ -154,6 +173,21 @@ impl EditorView {
                                     );
                                 })
                                 .body_unindented(|ui| {
+                                    // Virtualize off-screen card bodies: skip all
+                                    // widgets and allocate cached/estimated height.
+                                    let height_id = egui::Id::new(("card_body_h", i));
+                                    let cached_h: Option<f32> =
+                                        ui.ctx().data(|d| d.get_temp(height_id));
+                                    let h = cached_h.unwrap_or(ESTIMATED_CARD_BODY_HEIGHT);
+                                    let body_rect = egui::Rect::from_min_size(
+                                        ui.cursor().min,
+                                        egui::vec2(ui.available_width(), h),
+                                    );
+                                    if !ui.is_rect_visible(body_rect) {
+                                        ui.allocate_space(egui::vec2(ui.available_width(), h));
+                                        return;
+                                    }
+
                                     if is_open {
                                         ui.separator();
                                     }
@@ -165,13 +199,13 @@ impl EditorView {
                                             ui.set_max_width(col_w);
                                             let dark = ui.visuals().dark_mode;
                                             let mut front_layouter = |ui: &egui::Ui,
-                                                                    text: &dyn egui::TextBuffer,
-                                                                    wrap_width: f32| {
-                                            let mut job =
-                                                typst_layout_job(text.as_str(), dark);
-                                            job.wrap.max_width = wrap_width;
-                                            ui.fonts_mut(|f| f.layout_job(job))
-                                        };
+                                                                      text: &dyn egui::TextBuffer,
+                                                                      wrap_width: f32| {
+                                                let mut job =
+                                                    typst_layout_job(text.as_str(), dark);
+                                                job.wrap.max_width = wrap_width;
+                                                ui.fonts_mut(|f| f.layout_job(job))
+                                            };
                                             ui.label("Front (Typst):");
                                             ui.add(
                                                 egui::TextEdit::multiline(
@@ -184,13 +218,13 @@ impl EditorView {
                                             );
                                             ui.add_space(4.0);
                                             let mut back_layouter = |ui: &egui::Ui,
-                                                                   text: &dyn egui::TextBuffer,
-                                                                   wrap_width: f32| {
-                                            let mut job =
-                                                typst_layout_job(text.as_str(), dark);
-                                            job.wrap.max_width = wrap_width;
-                                            ui.fonts_mut(|f| f.layout_job(job))
-                                        };
+                                                                     text: &dyn egui::TextBuffer,
+                                                                     wrap_width: f32| {
+                                                let mut job =
+                                                    typst_layout_job(text.as_str(), dark);
+                                                job.wrap.max_width = wrap_width;
+                                                ui.fonts_mut(|f| f.layout_job(job))
+                                            };
                                             ui.label("Back (Typst):");
                                             ui.add(
                                                 egui::TextEdit::multiline(
@@ -293,6 +327,8 @@ impl EditorView {
                                         ui.vertical(|ui| {
                                             ui.set_max_width(col_w);
                                             let dark_mode = ui.visuals().dark_mode;
+                                            let q_col = quantize_width(col_w);
+                                            let col_width_pt = q_col as f32 / 2.0;
 
                                             ui.horizontal(|ui| {
                                                 ui.label("Front Preview:");
@@ -308,13 +344,17 @@ impl EditorView {
                                                 ec.preview_debounce.render_source(i, &front, ctx);
                                             let front_source =
                                                 with_preamble(deck.preamble(), &debounced_front);
-                                            let front_key =
-                                                format!("editor-front-{i}-{front_source}");
-                                            match ec.texture_cache.get_or_render(
+                                            let front_key = format!(
+                                                "ef-{}-{:x}@w{q_col}",
+                                                deck.cards()[i].id(),
+                                                hash_source(&front_source),
+                                            );
+                                            match ec.texture_cache.get_or_render_with_width(
                                                 ctx,
                                                 &front_key,
                                                 &front_source,
                                                 dark_mode,
+                                                Some(col_width_pt),
                                             ) {
                                                 Ok(tex) => {
                                                     ui.add(egui::Image::new(&tex).max_width(col_w));
@@ -341,12 +381,17 @@ impl EditorView {
                                             );
                                             let back_source =
                                                 with_preamble(deck.preamble(), &debounced_back);
-                                            let back_key = format!("editor-back-{i}-{back_source}");
-                                            match ec.texture_cache.get_or_render(
+                                            let back_key = format!(
+                                                "eb-{}-{:x}@w{q_col}",
+                                                deck.cards()[i].id(),
+                                                hash_source(&back_source),
+                                            );
+                                            match ec.texture_cache.get_or_render_with_width(
                                                 ctx,
                                                 &back_key,
                                                 &back_source,
                                                 dark_mode,
+                                                Some(col_width_pt),
                                             ) {
                                                 Ok(tex) => {
                                                     ui.add(egui::Image::new(&tex).max_width(col_w));
@@ -360,6 +405,12 @@ impl EditorView {
                                             }
                                         });
                                     });
+
+                                    // Cache measured body height for virtualization.
+                                    let h = ui.min_rect().height();
+                                    if h > 0.0 {
+                                        ui.ctx().data_mut(|d| d.insert_temp(height_id, h));
+                                    }
                                 });
                         });
                     });
@@ -393,5 +444,38 @@ fn with_preamble(preamble: &str, body: &str) -> String {
         body.to_string()
     } else {
         format!("{preamble}\n{body}")
+    }
+}
+
+fn hash_source(source: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    source.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Stable ID for card collapsing state that is independent of UI scope.
+fn card_collapsing_id(index: usize) -> egui::Id {
+    egui::Id::new(("editor_card_collapse", index))
+}
+
+fn set_all_cards_open(ui: &Ui, count: usize, open: bool) {
+    let ctx = ui.ctx();
+    for i in 0..count {
+        let id = card_collapsing_id(i);
+        if let Some(mut state) = egui::collapsing_header::CollapsingState::load(ctx, id) {
+            state.set_open(open);
+            state.store(ctx);
+        }
+    }
+}
+
+/// Resets all card collapsing states for the editor (e.g. when switching decks).
+pub fn reset_card_collapse_states(ctx: &Context, count: usize) {
+    for i in 0..count {
+        let id = card_collapsing_id(i);
+        if let Some(mut state) = egui::collapsing_header::CollapsingState::load(ctx, id) {
+            state.set_open(false);
+            state.store(ctx);
+        }
     }
 }

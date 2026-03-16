@@ -4,6 +4,16 @@ use std::time::Instant;
 use egui::{Context, TextureHandle};
 
 const MAX_CACHE_SIZE: usize = 100;
+const QUANTIZE_STEP: f32 = 50.0;
+const QUANTIZE_MIN: u32 = 100;
+
+/// Rounds a logical pixel width to the nearest 50px step (minimum 100px).
+/// This keeps the cache key stable across small layout fluctuations.
+pub fn quantize_width(logical_px: f32) -> u32 {
+    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let q = ((logical_px / QUANTIZE_STEP).round() as u32) * QUANTIZE_STEP as u32;
+    q.max(QUANTIZE_MIN)
+}
 
 struct CacheEntry {
     texture: TextureHandle,
@@ -67,19 +77,21 @@ impl TextureCache {
     }
 
     /// Renders the given Typst source into a texture, returning a cached
-    /// version when available. Newly rendered textures are inserted into
-    /// the cache (with LRU eviction if at capacity).
-    pub fn get_or_render(
+    /// version when available. When `width_pt` is `Some`, the Typst page
+    /// is constrained to that width (in points) so content wraps to fit.
+    pub fn get_or_render_with_width(
         &mut self,
         ctx: &Context,
         key: &str,
         source: &str,
         dark_mode: bool,
+        width_pt: Option<f32>,
     ) -> Result<TextureHandle, String> {
         if let Some(handle) = self.get(key) {
             return Ok(handle);
         }
-        let png = cram_render::render(source, dark_mode).map_err(|e| e.to_string())?;
+        let png = cram_render::render_with_width(source, dark_mode, width_pt)
+            .map_err(|e| e.to_string())?;
         let img = image::load_from_memory(&png).map_err(|e| e.to_string())?;
         let rgba = img.to_rgba8();
         let (w, h) = rgba.dimensions();
@@ -221,5 +233,20 @@ mod tests {
         let cache = TextureCache::default();
         assert!(cache.is_empty());
         assert_eq!(cache.len(), 0);
+    }
+
+    #[test]
+    fn quantize_width_rounds_to_step() {
+        assert_eq!(quantize_width(600.0), 600);
+        assert_eq!(quantize_width(624.0), 600);
+        assert_eq!(quantize_width(625.0), 650);
+        assert_eq!(quantize_width(675.0), 700);
+    }
+
+    #[test]
+    fn quantize_width_enforces_minimum() {
+        assert_eq!(quantize_width(50.0), 100);
+        assert_eq!(quantize_width(10.0), 100);
+        assert_eq!(quantize_width(0.0), 100);
     }
 }

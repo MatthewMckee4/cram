@@ -18,9 +18,26 @@ const PREAMBLE_LINES: usize = 2;
 /// # Errors
 /// Returns [`RenderError`] if the source fails to compile or produces no pages.
 pub fn render(source: &str, dark_mode: bool) -> Result<Vec<u8>, RenderError> {
+    render_with_width(source, dark_mode, None)
+}
+
+/// Like [`render`], but constrains the page to a fixed width (in Typst
+/// points) when `width_pt` is `Some`. When `None`, the page auto-sizes.
+///
+/// # Errors
+/// Returns [`RenderError`] if the source fails to compile or produces no pages.
+pub fn render_with_width(
+    source: &str,
+    dark_mode: bool,
+    width_pt: Option<f32>,
+) -> Result<Vec<u8>, RenderError> {
     let text_fill = if dark_mode { "white" } else { "black" };
+    let width = match width_pt {
+        Some(w) => format!("{w:.1}pt"),
+        None => "auto".to_string(),
+    };
     let preamble = format!(
-        "#set page(width: auto, height: auto, margin: 0.6em, fill: none)\n\
+        "#set page(width: {width}, height: auto, margin: 0.6em, fill: none)\n\
          #set text(fill: {text_fill})\n\
          {source}"
     );
@@ -140,6 +157,30 @@ mod tests {
         assert!(
             msg.contains("line") || msg.contains("unknown"),
             "error should be human-readable: {msg}"
+        );
+    }
+
+    #[test]
+    fn render_with_fixed_width_produces_png() {
+        let bytes = render_with_width("= Hello World", false, Some(200.0)).expect("render failed");
+        assert!(!bytes.is_empty());
+        assert_eq!(&bytes[..4], b"\x89PNG");
+    }
+
+    #[test]
+    fn render_with_fixed_width_constrains_image_width() {
+        let wide_source = "This is a long paragraph that should wrap when given a narrow page width instead of expanding infinitely to the right.";
+        let narrow = render_with_width(wide_source, false, Some(150.0)).expect("narrow failed");
+        let auto = render(wide_source, false).expect("auto failed");
+
+        let narrow_img = image::load_from_memory(&narrow).expect("decode narrow");
+        let auto_img = image::load_from_memory(&auto).expect("decode auto");
+
+        assert!(
+            narrow_img.width() < auto_img.width(),
+            "narrow ({}) should be less than auto ({})",
+            narrow_img.width(),
+            auto_img.width()
         );
     }
 }
