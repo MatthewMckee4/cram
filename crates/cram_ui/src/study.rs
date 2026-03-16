@@ -1,10 +1,13 @@
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use chrono::Utc;
 use cram_core::{Deck, sm2};
 use egui::{Context, Ui};
 
 use crate::app::{StudyMode, View};
 use crate::style;
-use crate::texture_cache::TextureCache;
+use crate::texture_cache::{TextureCache, quantize_width};
 
 pub struct StudyContext<'a> {
     pub decks: &'a mut [Deck],
@@ -75,9 +78,21 @@ impl StudyView {
         };
 
         let dark_mode = ui.visuals().dark_mode;
-        let render_result =
-            sc.texture_cache
-                .get_or_render(ctx, &card_source, &card_source, dark_mode);
+        let display_w = ui.available_width() - 50.0;
+        let quantized = quantize_width(display_w);
+        let width_pt = quantized as f32 / 2.0;
+        let cache_key = {
+            let mut hasher = DefaultHasher::new();
+            card_source.hash(&mut hasher);
+            format!("study-{:x}@w{quantized}", hasher.finish())
+        };
+        let render_result = sc.texture_cache.get_or_render_with_width(
+            ctx,
+            &cache_key,
+            &card_source,
+            dark_mode,
+            Some(width_pt),
+        );
 
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
@@ -103,8 +118,7 @@ impl StudyView {
                 ui.set_min_size(egui::vec2(ui.available_width(), 320.0));
                 ui.vertical_centered(|ui| match &render_result {
                     Ok(tex) => {
-                        let max_w = ui.available_width().min(600.0);
-                        ui.add(egui::Image::new(tex).max_width(max_w));
+                        ui.add(egui::Image::new(tex).max_width(ui.available_width()));
                     }
                     Err(err) => {
                         ui.colored_label(egui::Color32::RED, format!("Render error: {err}"));

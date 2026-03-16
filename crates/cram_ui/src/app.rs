@@ -1,22 +1,24 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use cram_core::Deck;
 use cram_store::{DeckSource, MultiStore, Store, StudyStats};
 
-use crate::ui_state::UiState;
-use eframe::CreationContext;
-use egui::Context;
-
 use crate::deck_list::DeckListAction;
-use crate::editor::{EditorContext, EditorView};
+use crate::editor::{EditorContext, EditorView, reset_card_collapse_states};
 use crate::sources::{SourceStatus, SourcesView, SyncTask};
 use crate::stats::StatsView;
 use crate::study::{StudyContext, StudyView};
 use crate::style;
-use crate::texture_cache::TextureCache;
+use crate::texture_cache::{TextureCache, quantize_width};
 use crate::theme::Theme;
+use crate::ui_state::UiState;
 use crate::{deck_list::DeckListView, search::SearchView};
+use eframe::CreationContext;
+use egui::Context;
 
 #[derive(Default, Clone)]
 pub enum View {
@@ -228,6 +230,7 @@ impl View {
 
 impl eframe::App for CramApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        let prev_was_editor = matches!(self.view, View::Editor { .. });
         let prev_deck = self.view.deck_name().map(str::to_string);
         egui::TopBottomPanel::top("topbar")
             .frame(
@@ -516,6 +519,15 @@ impl eframe::App for CramApp {
 
         let current_deck = self.view.deck_name().map(str::to_string);
         if current_deck != prev_deck {
+            if prev_was_editor {
+                let max_cards = self
+                    .decks
+                    .iter()
+                    .map(|(d, _)| d.cards().len())
+                    .max()
+                    .unwrap_or(0);
+                reset_card_collapse_states(ctx, max_cards);
+            }
             self.last_deck = current_deck.or(self.last_deck.take());
             self.save_ui_state();
         }
@@ -585,14 +597,24 @@ impl CramApp {
                 ui.separator();
 
                 egui::ScrollArea::both().show(ui, |ui| {
-                    let key = format!("fullscreen-{source}");
+                    let avail = ui.available_width();
+                    let q = quantize_width(avail);
+                    let width_pt = q as f32 / 2.0;
+                    let key = {
+                        let mut hasher = DefaultHasher::new();
+                        source.hash(&mut hasher);
+                        format!("fs-{:x}@w{q}", hasher.finish())
+                    };
                     let dark_mode = ui.visuals().dark_mode;
-                    match self
-                        .texture_cache
-                        .get_or_render(ctx, &key, &source, dark_mode)
-                    {
+                    match self.texture_cache.get_or_render_with_width(
+                        ctx,
+                        &key,
+                        &source,
+                        dark_mode,
+                        Some(width_pt),
+                    ) {
                         Ok(tex) => {
-                            ui.add(egui::Image::new(&tex).max_width(ui.available_width()));
+                            ui.add(egui::Image::new(&tex).max_width(avail));
                         }
                         Err(err) => {
                             ui.colored_label(egui::Color32::RED, format!("Render error: {err}"));
