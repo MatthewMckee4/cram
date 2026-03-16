@@ -217,9 +217,9 @@ fn show_rating_buttons(
 
                 if ui.add(btn).clicked() || ui.input(|i| i.key_pressed(keys[idx])) {
                     let today = Utc::now().date_naive();
-                    let current_review = sc.decks[deck_idx].cards()[card_pos].review().clone();
-                    let new_review = sm2::schedule(&current_review, *rating, today);
-                    *sc.decks[deck_idx].cards_mut()[card_pos].review_mut() = new_review;
+                    let current_review = sc.decks[deck_idx].cards()[card_pos].review();
+                    let new_review = sm2::schedule(current_review, *rating, today);
+                    sc.decks[deck_idx].cards_mut()[card_pos].set_review(new_review);
 
                     advance_card(sc, total);
                 }
