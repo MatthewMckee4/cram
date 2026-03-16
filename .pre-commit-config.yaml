@@ -33,12 +33,6 @@ repos:
       - id: typos
         priority: 0
 
-  - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.10
-    hooks:
-      - id: actionlint
-        priority: 0
-
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
     rev: v1.22.0
     hooks:
