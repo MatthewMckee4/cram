@@ -7,8 +7,8 @@ pub struct Card {
     id: Uuid,
     front: String,
     back: String,
-    #[serde(default)]
-    review: ReviewState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    review: Option<ReviewState>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     tags: Vec<String>,
 }
@@ -43,7 +43,7 @@ impl Card {
             id: Uuid::new_v4(),
             front: front.into(),
             back: back.into(),
-            review: ReviewState::default(),
+            review: None,
             tags: Vec::new(),
         }
     }
@@ -68,12 +68,12 @@ impl Card {
         &mut self.back
     }
 
-    pub fn review(&self) -> &ReviewState {
-        &self.review
+    pub fn review(&self) -> Option<&ReviewState> {
+        self.review.as_ref()
     }
 
-    pub fn review_mut(&mut self) -> &mut ReviewState {
-        &mut self.review
+    pub fn set_review(&mut self, state: ReviewState) {
+        self.review = Some(state);
     }
 
     pub fn tags(&self) -> &[String] {
@@ -140,5 +140,30 @@ mod tests {
         card.tags_mut().push("memory".to_string());
         assert!(card.has_tag("memory"));
         assert!(!card.has_tag("other"));
+    }
+
+    #[test]
+    fn new_card_has_no_review_state() {
+        let card = Card::new("Q", "A");
+        assert!(card.review().is_none());
+    }
+
+    #[test]
+    fn set_review_stores_state() {
+        let mut card = Card::new("Q", "A");
+        let state = ReviewState::default();
+        card.set_review(state.clone());
+        assert_eq!(card.review(), Some(&state));
+    }
+
+    #[test]
+    fn deserialize_missing_review_as_none() {
+        let toml_str = r#"
+            id = "00000000-0000-0000-0000-000000000001"
+            front = "Q"
+            back = "A"
+        "#;
+        let card: Card = toml::from_str(toml_str).expect("valid toml");
+        assert!(card.review().is_none());
     }
 }

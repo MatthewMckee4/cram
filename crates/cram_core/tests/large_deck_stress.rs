@@ -54,7 +54,7 @@ fn filter_due_cards_in_large_deck() {
     let future = NaiveDate::from_ymd_opt(2026, 12, 31).expect("valid date");
     for (i, card) in deck.cards_mut().iter_mut().enumerate() {
         if i % 2 == 0 {
-            *card.review_mut() = schedule(card.review(), Rating::Easy, future);
+            card.set_review(schedule(card.review(), Rating::Easy, future));
         }
     }
 

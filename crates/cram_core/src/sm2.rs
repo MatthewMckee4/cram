@@ -32,7 +32,10 @@ const MIN_EASE_FACTOR: f64 = 1.3;
 /// Apply the SM-2 algorithm to update a card's review state after a rating.
 ///
 /// Returns the updated `ReviewState` with new interval, ease factor, and due date.
-pub fn schedule(state: &ReviewState, rating: Rating, today: NaiveDate) -> ReviewState {
+/// If `state` is `None`, the card is treated as never reviewed (uses defaults).
+pub fn schedule(state: Option<&ReviewState>, rating: Rating, today: NaiveDate) -> ReviewState {
+    let default = ReviewState::default();
+    let state = state.unwrap_or(&default);
     let q = rating.quality();
 
     let (repetitions, interval, ease_factor) = if q < 3 {
@@ -71,11 +74,14 @@ pub fn schedule(state: &ReviewState, rating: Rating, today: NaiveDate) -> Review
 
 /// Returns `true` if a card is due for review on the given date.
 ///
-/// Cards that have never been reviewed are always due.
-pub fn is_due(state: &ReviewState, today: NaiveDate) -> bool {
-    match state.due_date {
+/// Cards that have never been reviewed (`None`) are always due.
+pub fn is_due(state: Option<&ReviewState>, today: NaiveDate) -> bool {
+    match state {
         None => true,
-        Some(due) => today >= due,
+        Some(s) => match s.due_date {
+            None => true,
+            Some(due) => today >= due,
+        },
     }
 }
 
@@ -94,9 +100,8 @@ mod tests {
 
     #[test]
     fn first_review_good_sets_interval_to_1() {
-        let state = default_state();
         let today = date(2026, 3, 1);
-        let next = schedule(&state, Rating::Good, today);
+        let next = schedule(None, Rating::Good, today);
         assert_eq!(next.repetitions, 1);
         assert_eq!(next.interval, 1);
         assert_eq!(next.due_date, Some(date(2026, 3, 2)));
@@ -110,7 +115,7 @@ mod tests {
             ease_factor: 2.5,
             due_date: Some(date(2026, 3, 2)),
         };
-        let next = schedule(&state, Rating::Good, date(2026, 3, 2));
+        let next = schedule(Some(&state), Rating::Good, date(2026, 3, 2));
         assert_eq!(next.repetitions, 2);
         assert_eq!(next.interval, 6);
         assert_eq!(next.due_date, Some(date(2026, 3, 8)));
@@ -124,7 +129,7 @@ mod tests {
             ease_factor: 2.5,
             due_date: Some(date(2026, 3, 8)),
         };
-        let next = schedule(&state, Rating::Good, date(2026, 3, 8));
+        let next = schedule(Some(&state), Rating::Good, date(2026, 3, 8));
         assert_eq!(next.repetitions, 3);
         assert_eq!(next.interval, 15);
     }
@@ -137,7 +142,7 @@ mod tests {
             ease_factor: 2.5,
             due_date: Some(date(2026, 3, 1)),
         };
-        let next = schedule(&state, Rating::Again, date(2026, 3, 1));
+        let next = schedule(Some(&state), Rating::Again, date(2026, 3, 1));
         assert_eq!(next.repetitions, 0);
         assert_eq!(next.interval, 1);
         assert_eq!(next.due_date, Some(date(2026, 3, 2)));
@@ -145,15 +150,13 @@ mod tests {
 
     #[test]
     fn ease_factor_decreases_on_hard() {
-        let state = default_state();
-        let next = schedule(&state, Rating::Hard, date(2026, 3, 1));
+        let next = schedule(None, Rating::Hard, date(2026, 3, 1));
         assert!(next.ease_factor < 2.5);
     }
 
     #[test]
     fn ease_factor_increases_on_easy() {
-        let state = default_state();
-        let next = schedule(&state, Rating::Easy, date(2026, 3, 1));
+        let next = schedule(None, Rating::Easy, date(2026, 3, 1));
         assert!(next.ease_factor > 2.5);
     }
 
@@ -165,13 +168,13 @@ mod tests {
             ease_factor: MIN_EASE_FACTOR,
             due_date: Some(date(2026, 3, 1)),
         };
-        let next = schedule(&state, Rating::Hard, date(2026, 3, 1));
+        let next = schedule(Some(&state), Rating::Hard, date(2026, 3, 1));
         assert!(next.ease_factor >= MIN_EASE_FACTOR);
     }
 
     #[test]
-    fn new_card_is_due() {
-        assert!(is_due(&default_state(), date(2026, 3, 1)));
+    fn never_reviewed_card_is_due() {
+        assert!(is_due(None, date(2026, 3, 1)));
     }
 
     #[test]
@@ -180,7 +183,7 @@ mod tests {
             due_date: Some(date(2026, 3, 5)),
             ..default_state()
         };
-        assert!(is_due(&state, date(2026, 3, 5)));
+        assert!(is_due(Some(&state), date(2026, 3, 5)));
     }
 
     #[test]
@@ -189,7 +192,7 @@ mod tests {
             due_date: Some(date(2026, 3, 5)),
             ..default_state()
         };
-        assert!(is_due(&state, date(2026, 3, 10)));
+        assert!(is_due(Some(&state), date(2026, 3, 10)));
     }
 
     #[test]
@@ -198,7 +201,7 @@ mod tests {
             due_date: Some(date(2026, 3, 5)),
             ..default_state()
         };
-        assert!(!is_due(&state, date(2026, 3, 4)));
+        assert!(!is_due(Some(&state), date(2026, 3, 4)));
     }
 
     #[test]
@@ -209,7 +212,7 @@ mod tests {
             ease_factor: 2.2,
             due_date: Some(date(2026, 3, 1)),
         };
-        let next = schedule(&state, Rating::Again, date(2026, 3, 1));
+        let next = schedule(Some(&state), Rating::Again, date(2026, 3, 1));
         assert!((next.ease_factor - 2.2).abs() < f64::EPSILON);
     }
 }
