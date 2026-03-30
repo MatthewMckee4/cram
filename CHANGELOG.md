@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.1-alpha.4
+
+### New Features
+
+- Consistent nav-style buttons and deck detail page ([#108](https://github.com/MatthewMckee4/cram/pull/108))
+
+### Contributors
+
+- [@MatthewMckee4](https://github.com/MatthewMckee4)
+
 ## 0.0.1-alpha.3
 
 ### New Features
