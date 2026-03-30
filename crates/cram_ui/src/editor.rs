@@ -21,7 +21,6 @@ pub struct EditorContext<'a> {
     pub deck_source: &'a DeckSource,
     pub texture_cache: &'a mut TextureCache,
     pub preview_debounce: &'a mut PreviewDebounce,
-    pub fullscreen_preview: &'a mut Option<String>,
     pub save_feedback: &'a mut Option<std::time::Instant>,
     pub tag_input: &'a mut std::collections::HashMap<usize, String>,
 }
@@ -29,14 +28,25 @@ pub struct EditorContext<'a> {
 pub struct EditorView;
 
 impl EditorView {
-    pub fn show(ui: &mut Ui, ctx: &Context, ec: &mut EditorContext<'_>) {
+    /// Returns `true` if the user pressed the back button.
+    pub fn show(ui: &mut Ui, ctx: &Context, ec: &mut EditorContext<'_>) -> bool {
         let Some(deck) = ec.decks.iter_mut().find(|d| d.name() == ec.deck_name) else {
             ui.label("Deck not found.");
-            return;
+            return false;
         };
+
+        let mut back = false;
+        let mut save_now = false;
 
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
+                ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
+                if ui
+                    .selectable_label(false, egui::RichText::new("Back").size(15.0))
+                    .clicked()
+                {
+                    back = true;
+                }
                 ui.heading(format!("Edit: {}", ec.deck_name));
                 if let DeckSource::Linked(path) = ec.deck_source {
                     ui.label(
@@ -47,21 +57,36 @@ impl EditorView {
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
-                        .add(style::accent_button("+ Add Card").min_size(egui::vec2(140.0, 34.0)))
+                        .selectable_label(false, egui::RichText::new("+ Add Card").size(15.0))
                         .clicked()
                     {
                         deck.cards_mut().push(Card::new("Front", "Back"));
+                        let new_idx = deck.cards().len() - 1;
+                        let mut state =
+                            egui::collapsing_header::CollapsingState::load_with_default_open(
+                                ui.ctx(),
+                                card_collapsing_id(new_idx),
+                                true,
+                            );
+                        state.set_open(true);
+                        state.store(ui.ctx());
                         let _ = ec.multi_store.save_deck(deck, ec.deck_source);
                     }
-                    let btn_size = egui::vec2(100.0, 34.0);
                     if ui
-                        .add(style::secondary_button("Collapse All").min_size(btn_size))
+                        .selectable_label(false, egui::RichText::new("Save").size(15.0))
+                        .clicked()
+                    {
+                        save_now = true;
+                        ec.texture_cache.clear();
+                    }
+                    if ui
+                        .selectable_label(false, egui::RichText::new("Collapse All").size(15.0))
                         .clicked()
                     {
                         set_all_cards_open(ui, deck.cards().len(), false);
                     }
                     if ui
-                        .add(style::secondary_button("Expand All").min_size(btn_size))
+                        .selectable_label(false, egui::RichText::new("Expand All").size(15.0))
                         .clicked()
                     {
                         set_all_cards_open(ui, deck.cards().len(), true);
@@ -111,7 +136,6 @@ impl EditorView {
 
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let mut to_delete: Option<usize> = None;
-                let mut save_now = false;
                 let count = deck.cards().len();
 
                 for i in 0..count {
@@ -158,16 +182,6 @@ impl EditorView {
                                                 .clicked()
                                             {
                                                 to_delete = Some(i);
-                                            }
-                                            if ui
-                                                .add(
-                                                    style::accent_button("Save")
-                                                        .min_size(header_btn),
-                                                )
-                                                .clicked()
-                                            {
-                                                save_now = true;
-                                                ec.texture_cache.clear();
                                             }
                                         },
                                     );
@@ -330,15 +344,7 @@ impl EditorView {
                                             let q_col = quantize_width(col_w);
                                             let col_width_pt = q_col as f32 / 2.0;
 
-                                            ui.horizontal(|ui| {
-                                                ui.label("Front Preview:");
-                                                if ui.small_button("Full Screen").clicked() {
-                                                    *ec.fullscreen_preview = Some(with_preamble(
-                                                        deck.preamble(),
-                                                        deck.cards()[i].front(),
-                                                    ));
-                                                }
-                                            });
+                                            ui.label("Front Preview:");
                                             let front = deck.cards()[i].front().to_string();
                                             let debounced_front =
                                                 ec.preview_debounce.render_source(i, &front, ctx);
@@ -427,6 +433,8 @@ impl EditorView {
                 }
             });
         });
+
+        back
     }
 }
 

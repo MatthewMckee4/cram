@@ -7,6 +7,7 @@ use std::hash::{Hash, Hasher};
 use cram_core::Deck;
 use cram_store::{DeckSource, MultiStore, Store, StudyStats};
 
+use crate::deck_detail::{DeckDetailAction, DeckDetailView};
 use crate::deck_list::DeckListAction;
 use crate::editor::{EditorContext, EditorView, reset_card_collapse_states};
 use crate::sources::{SourceStatus, SourcesView, SyncTask};
@@ -16,7 +17,8 @@ use crate::style;
 use crate::texture_cache::{TextureCache, quantize_width};
 use crate::theme::Theme;
 use crate::ui_state::UiState;
-use crate::{deck_list::DeckListView, search::SearchView};
+use crate::deck_list::DeckListView;
+use crate::search::SearchView;
 use eframe::CreationContext;
 use egui::Context;
 
@@ -34,6 +36,9 @@ pub enum View {
     Editor {
         deck_name: String,
         card_index: Option<usize>,
+    },
+    DeckDetail {
+        deck_name: String,
     },
     NewDeck,
     Search,
@@ -222,7 +227,9 @@ impl CramApp {
 impl View {
     fn deck_name(&self) -> Option<&str> {
         match self {
-            View::Study { deck_name, .. } | View::Editor { deck_name, .. } => Some(deck_name),
+            View::Study { deck_name, .. }
+            | View::Editor { deck_name, .. }
+            | View::DeckDetail { deck_name, .. } => Some(deck_name),
             _ => None,
         }
     }
@@ -240,7 +247,12 @@ impl eframe::App for CramApp {
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.heading("Cram");
+                    ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
+                    egui::Frame::new()
+                        .inner_margin(egui::Margin::symmetric(0, 6))
+                        .show(ui, |ui| {
+                            ui.label(egui::RichText::new("Cram").strong().size(18.0));
+                        });
                     ui.separator();
                     let nav = [
                         ("Decks", View::DeckList),
@@ -249,8 +261,11 @@ impl eframe::App for CramApp {
                         ("Sources", View::Sources),
                     ];
                     for (label, target) in nav {
-                        let active =
-                            std::mem::discriminant(&self.view) == std::mem::discriminant(&target);
+                        let active = if matches!(target, View::DeckList) {
+                            matches!(self.view, View::DeckList | View::DeckDetail { .. })
+                        } else {
+                            std::mem::discriminant(&self.view) == std::mem::discriminant(&target)
+                        };
                         let text = egui::RichText::new(label).size(15.0);
                         if ui.selectable_label(active, text).clicked() {
                             self.view = target;
@@ -309,18 +324,39 @@ impl eframe::App for CramApp {
                                 &deck_refs,
                                 &mut self.view,
                                 &mut self.new_deck_name,
-                                &mut self.confirm_delete_deck,
-                                &mut self.study_tag_filter,
                             ) {
                                 match action {
-                                    DeckListAction::Delete(name) => {
-                                        let _ = self.multi_store.delete_deck(&name);
-                                        self.reload_decks();
-                                    }
                                     DeckListAction::Import(path) => {
                                         self.import_deck_from_file(&path);
                                     }
                                 }
+                            }
+                        }
+                        View::DeckDetail { deck_name } => {
+                            if let Some(deck) = self
+                                .decks
+                                .iter()
+                                .find(|(d, _)| d.name() == deck_name)
+                                .map(|(d, _)| d.clone())
+                            {
+                                if let Some(action) = DeckDetailView::show(
+                                    ui,
+                                    ctx,
+                                    &deck,
+                                    &mut self.view,
+                                    &mut self.confirm_delete_deck,
+                                    &mut self.study_tag_filter,
+                                ) {
+                                    match action {
+                                        DeckDetailAction::Delete(name) => {
+                                            let _ = self.multi_store.delete_deck(&name);
+                                            self.reload_decks();
+                                            self.view = View::DeckList;
+                                        }
+                                    }
+                                }
+                            } else {
+                                self.view = View::DeckList;
                             }
                         }
                         View::Study {
@@ -401,20 +437,25 @@ impl eframe::App for CramApp {
                                 deck_source: &source,
                                 texture_cache: &mut self.texture_cache,
                                 preview_debounce: &mut self.preview_debounce,
-                                fullscreen_preview: &mut self.fullscreen_preview,
                                 save_feedback: &mut self.save_feedback,
                                 tag_input: &mut self.tag_input,
                             };
-                            EditorView::show(ui, ctx, &mut ec);
+                            let back = EditorView::show(ui, ctx, &mut ec);
                             // Write modified decks back
                             for (i, (deck, _src)) in self.decks.iter_mut().enumerate() {
                                 if i < deck_only.len() {
                                     *deck = deck_only[i].clone();
                                 }
                             }
-                            self.view = View::Editor {
-                                deck_name,
-                                card_index,
+                            self.view = if back {
+                                View::DeckDetail {
+                                    deck_name: deck_name.clone(),
+                                }
+                            } else {
+                                View::Editor {
+                                    deck_name,
+                                    card_index,
+                                }
                             };
                         }
                         View::Search => {

@@ -1,76 +1,49 @@
-use std::collections::BTreeSet;
-
 use chrono::Utc;
 use cram_core::{Deck, sm2};
 use cram_store::DeckSource;
 use egui::{Context, Ui};
 
-use crate::app::{StudyMode, View};
+use crate::app::View;
 use crate::style;
 
-/// Actions the deck list can request from the app.
 pub enum DeckListAction {
-    Delete(String),
     Import(std::path::PathBuf),
 }
 
 pub struct DeckListView;
 
 impl DeckListView {
-    /// Returns an optional action for the app to handle (delete or import).
     pub fn show(
         ui: &mut Ui,
         ctx: &Context,
         decks: &[(&Deck, &DeckSource)],
         view: &mut View,
         new_deck_name: &mut String,
-        confirm_delete: &mut Option<String>,
-        study_tag_filter: &mut BTreeSet<String>,
     ) -> Option<DeckListAction> {
+        let _ = ctx;
         let mut action = None;
-
-        if let Some(deck_name) = confirm_delete.clone() {
-            let mut open = true;
-            egui::Window::new("Delete Deck")
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                .open(&mut open)
-                .show(ctx, |ui| {
-                    ui.label(format!(
-                        "Are you sure you want to delete \"{deck_name}\"? This cannot be undone."
-                    ));
-                    ui.add_space(8.0);
-                    ui.horizontal(|ui| {
-                        if ui.add(style::destructive_button("Delete")).clicked() {
-                            action = Some(DeckListAction::Delete(deck_name));
-                            *confirm_delete = None;
-                        }
-                        if ui.button("Cancel").clicked() {
-                            *confirm_delete = None;
-                        }
-                    });
-                });
-            if !open {
-                *confirm_delete = None;
-            }
-        }
 
         ui.vertical(|ui| {
             ui.add_space(style::SECTION_SPACING);
             ui.horizontal(|ui| {
                 ui.heading("Your Decks");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add(style::accent_button("New Deck")).clicked() {
-                        *new_deck_name = String::new();
-                        *view = View::NewDeck;
-                    }
-                    if ui.add(style::secondary_button("Import")).clicked()
+                    ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
+                    if ui
+                        .selectable_label(false, egui::RichText::new("Import").size(15.0))
+                        .clicked()
                         && let Some(path) = rfd::FileDialog::new()
                             .add_filter("Deck files", &["toml", "csv"])
                             .pick_file()
                     {
                         action = Some(DeckListAction::Import(path));
+                    }
+                    if ui
+                        .selectable_label(false, egui::RichText::new("New Deck").size(15.0))
+                        .clicked()
+                    {
+                        *new_deck_name = String::new();
+                        *view = View::NewDeck;
                     }
                 });
             });
@@ -94,16 +67,25 @@ impl DeckListView {
                 return;
             }
 
+            let spacing = 20.0;
+            let min_card_width = 320.0;
+            // card_frame applies inner_margin(CARD_MARGIN) on both sides, so the actual
+            // column width is wider than the inner content min width.
+            let min_column_width = min_card_width + 2.0 * style::CARD_MARGIN;
+            let available_width = ui.available_width();
+            let num_columns = ((available_width + spacing) / (min_column_width + spacing))
+                .floor()
+                .max(1.0) as usize;
+
             egui::Grid::new("deck_grid")
-                .num_columns(3)
-                .spacing([20.0, 20.0])
+                .num_columns(num_columns)
+                .spacing([spacing, spacing])
                 .show(ui, |ui| {
                     for (i, (deck, _source)) in decks.iter().enumerate() {
                         let total = deck.cards().len();
-                        let all_tags = deck.all_tags();
 
-                        style::card_frame(ui).show(ui, |ui| {
-                            ui.set_min_width(240.0);
+                        let frame_resp = style::card_frame(ui).show(ui, |ui| {
+                            ui.set_min_width(min_card_width);
                             ui.vertical(|ui| {
                                 ui.heading(deck.name());
                                 if !deck.description().is_empty() {
@@ -113,107 +95,26 @@ impl DeckListView {
                                             .color(ui.visuals().weak_text_color()),
                                     );
                                 }
+                                ui.add_space(4.0);
                                 ui.label(format!("{total} cards"));
-
-                                let due_count = due_card_count(deck);
-                                if due_count > 0 {
-                                    ui.label(
-                                        egui::RichText::new(format!("{due_count} due"))
-                                            .small()
-                                            .color(style::ACCENT),
-                                    );
-                                }
-
-                                if !all_tags.is_empty() {
-                                    ui.add_space(4.0);
-                                    ui.horizontal_wrapped(|ui| {
-                                        ui.label(
-                                            egui::RichText::new("Filter tags:")
-                                                .small()
-                                                .color(ui.visuals().weak_text_color()),
-                                        );
-                                        for tag in &all_tags {
-                                            let selected = study_tag_filter.contains(tag);
-                                            let text = egui::RichText::new(tag).small();
-                                            if ui.selectable_label(selected, text).clicked() {
-                                                if selected {
-                                                    study_tag_filter.remove(tag);
-                                                } else {
-                                                    study_tag_filter.insert(tag.clone());
-                                                }
-                                            }
-                                        }
-                                    });
-                                    let filtered =
-                                        deck.card_indices_matching_tags(study_tag_filter);
-                                    if !study_tag_filter.is_empty() {
-                                        ui.label(
-                                            egui::RichText::new(format!(
-                                                "{}/{total} cards match",
-                                                filtered.len()
-                                            ))
-                                            .small()
-                                            .color(ui.visuals().weak_text_color()),
-                                        );
-                                    }
-                                }
-
-                                ui.add_space(12.0);
-                                ui.horizontal(|ui| {
-                                    if ui.add(style::accent_button("Study")).clicked() {
-                                        let indices =
-                                            deck.card_indices_matching_tags(study_tag_filter);
-                                        *view = View::Study {
-                                            deck_name: deck.name().to_string(),
-                                            card_index: 0,
-                                            revealed: false,
-                                            shuffled_indices: shuffled_indices_from(indices),
-                                            study_mode: StudyMode::Random,
-                                        };
-                                        study_tag_filter.clear();
-                                    }
-                                    if ui
-                                        .add(style::secondary_button("Spaced"))
-                                        .on_hover_text(
-                                            "Study cards due for review using spaced repetition",
-                                        )
-                                        .clicked()
-                                    {
-                                        let indices = due_indices(deck);
-                                        if !indices.is_empty() {
-                                            *view = View::Study {
-                                                deck_name: deck.name().to_string(),
-                                                card_index: 0,
-                                                revealed: false,
-                                                shuffled_indices: indices,
-                                                study_mode: StudyMode::SpacedRepetition,
-                                            };
-                                        }
-                                    }
-                                    if ui.add(style::secondary_button("Edit")).clicked() {
-                                        *view = View::Editor {
-                                            deck_name: deck.name().to_string(),
-                                            card_index: None,
-                                        };
-                                    }
-                                    if ui.add(style::secondary_button("Export")).clicked()
-                                        && let Some(path) = rfd::FileDialog::new()
-                                            .set_file_name(format!("{}.toml", deck.name()))
-                                            .add_filter("TOML deck files", &["toml"])
-                                            .save_file()
-                                        && let Err(e) =
-                                            cram_store::exchange::export_toml(deck, &path)
-                                    {
-                                        tracing::warn!("export failed: {e}");
-                                    }
-                                    if ui.add(style::destructive_button("Delete")).clicked() {
-                                        *confirm_delete = Some(deck.name().to_string());
-                                    }
-                                });
                             });
                         });
 
-                        if (i + 1) % 3 == 0 {
+                        let card_interact = ui
+                            .interact(
+                                frame_resp.response.rect,
+                                egui::Id::new(("deck_card", i)),
+                                egui::Sense::click(),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+
+                        if card_interact.clicked() {
+                            *view = View::DeckDetail {
+                                deck_name: deck.name().to_string(),
+                            };
+                        }
+
+                        if (i + 1) % num_columns == 0 {
                             ui.end_row();
                         }
                     }
@@ -225,7 +126,7 @@ impl DeckListView {
 }
 
 /// Build a shuffled version of the provided card indices.
-fn shuffled_indices_from(mut indices: Vec<usize>) -> Vec<usize> {
+pub(crate) fn shuffled_indices_from(mut indices: Vec<usize>) -> Vec<usize> {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -244,7 +145,7 @@ fn shuffled_indices_from(mut indices: Vec<usize>) -> Vec<usize> {
 }
 
 /// Return indices of cards that are due for review today.
-fn due_indices(deck: &Deck) -> Vec<usize> {
+pub(crate) fn due_indices(deck: &Deck) -> Vec<usize> {
     let today = Utc::now().date_naive();
     deck.cards()
         .iter()
@@ -252,13 +153,4 @@ fn due_indices(deck: &Deck) -> Vec<usize> {
         .filter(|(_, card)| sm2::is_due(card.review(), today))
         .map(|(i, _)| i)
         .collect()
-}
-
-/// Count how many cards in a deck are due for review today.
-fn due_card_count(deck: &Deck) -> usize {
-    let today = Utc::now().date_naive();
-    deck.cards()
-        .iter()
-        .filter(|card| sm2::is_due(card.review(), today))
-        .count()
 }
