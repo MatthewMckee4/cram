@@ -153,7 +153,10 @@ impl SourcesView {
             ui.horizontal(|ui| {
                 ui.heading("Linked Sources");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add(style::accent_button("Link Folder")).clicked()
+                    ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
+                    if ui
+                        .selectable_label(false, egui::RichText::new("Link Folder").size(15.0))
+                        .clicked()
                         && let Some(dir) = rfd::FileDialog::new().pick_folder()
                     {
                         link_source(
@@ -164,7 +167,9 @@ impl SourcesView {
                             error_message,
                         );
                     }
-                    if ui.add(style::accent_button("Find Deck")).clicked()
+                    if ui
+                        .selectable_label(false, egui::RichText::new("Find Deck").size(15.0))
+                        .clicked()
                         && let Some(path) = rfd::FileDialog::new()
                             .add_filter("TOML deck files", &["toml"])
                             .pick_file()
@@ -226,8 +231,14 @@ impl SourcesView {
                                 ui.spinner();
                                 ui.label("Syncing...");
                             });
-                        } else if ui.add(style::accent_button("Sync All")).clicked() {
-                            *sync_task = Some(SyncTask::spawn_all(multi_store, ctx.clone()));
+                        } else {
+                            ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
+                            if ui
+                                .selectable_label(false, egui::RichText::new("Sync All").size(15.0))
+                                .clicked()
+                            {
+                                *sync_task = Some(SyncTask::spawn_all(multi_store, ctx.clone()));
+                            }
                         }
                     }
                 });
@@ -316,8 +327,15 @@ fn show_group(
                         let syncing = sync_task.is_some();
                         if syncing {
                             ui.spinner();
-                        } else if ui.add(style::accent_button("Sync")).clicked() {
-                            *sync_task = Some(SyncTask::spawn_single(root.clone(), ctx.clone()));
+                        } else {
+                            ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
+                            if ui
+                                .selectable_label(false, egui::RichText::new("Sync").size(15.0))
+                                .clicked()
+                            {
+                                *sync_task =
+                                    Some(SyncTask::spawn_single(root.clone(), ctx.clone()));
+                            }
                         }
                     });
                 });

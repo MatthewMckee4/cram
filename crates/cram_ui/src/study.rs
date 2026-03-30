@@ -31,7 +31,9 @@ impl StudyView {
         }
 
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            *sc.view = View::DeckList;
+            *sc.view = View::DeckDetail {
+                deck_name: sc.deck_name.to_string(),
+            };
             return;
         }
 
