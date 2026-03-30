@@ -9,7 +9,9 @@ use cram_store::{DeckSource, MultiStore, Store, StudyStats};
 
 use crate::deck_detail::{DeckDetailAction, DeckDetailView};
 use crate::deck_list::DeckListAction;
+use crate::deck_list::DeckListView;
 use crate::editor::{EditorContext, EditorView, reset_card_collapse_states};
+use crate::search::SearchView;
 use crate::sources::{SourceStatus, SourcesView, SyncTask};
 use crate::stats::StatsView;
 use crate::study::{StudyContext, StudyView};
@@ -17,8 +19,6 @@ use crate::style;
 use crate::texture_cache::{TextureCache, quantize_width};
 use crate::theme::Theme;
 use crate::ui_state::UiState;
-use crate::deck_list::DeckListView;
-use crate::search::SearchView;
 use eframe::CreationContext;
 use egui::Context;
 

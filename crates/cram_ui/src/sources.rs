@@ -234,10 +234,7 @@ impl SourcesView {
                         } else {
                             ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
                             if ui
-                                .selectable_label(
-                                    false,
-                                    egui::RichText::new("Sync All").size(15.0),
-                                )
+                                .selectable_label(false, egui::RichText::new("Sync All").size(15.0))
                                 .clicked()
                             {
                                 *sync_task = Some(SyncTask::spawn_all(multi_store, ctx.clone()));
