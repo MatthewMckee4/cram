@@ -4,16 +4,6 @@ use std::time::Instant;
 use egui::{Context, TextureHandle};
 
 const MAX_CACHE_SIZE: usize = 100;
-const QUANTIZE_STEP: f32 = 50.0;
-const QUANTIZE_MIN: u32 = 100;
-
-/// Rounds a logical pixel width to the nearest 50px step (minimum 100px).
-/// This keeps the cache key stable across small layout fluctuations.
-pub fn quantize_width(logical_px: f32) -> u32 {
-    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let q = ((logical_px / QUANTIZE_STEP).round() as u32) * QUANTIZE_STEP as u32;
-    q.max(QUANTIZE_MIN)
-}
 
 struct CacheEntry {
     texture: TextureHandle,
@@ -52,6 +42,11 @@ impl TextureCache {
     /// Removes all entries from the cache.
     pub fn clear(&mut self) {
         self.entries.clear();
+    }
+
+    /// Checks whether a key exists in the cache without updating access time.
+    pub fn contains(&self, key: &str) -> bool {
+        self.entries.contains_key(key)
     }
 
     /// Looks up a cached texture by key, updating its last-access time.
@@ -101,7 +96,6 @@ impl TextureCache {
         Ok(handle)
     }
 
-    /// Evicts the least-recently-used entry if the cache exceeds the maximum size.
     fn evict_if_needed(&mut self) {
         while self.entries.len() > MAX_CACHE_SIZE {
             if let Some(lru_key) = self
@@ -120,10 +114,8 @@ impl TextureCache {
 mod tests {
     use super::*;
 
-    /// Creates a minimal egui context suitable for texture allocation in tests.
     fn test_ctx() -> Context {
         let ctx = Context::default();
-        // Allocate a minimal renderer so load_texture works.
         ctx.memory_mut(|_| {});
         ctx
     }
@@ -172,12 +164,8 @@ mod tests {
         }
         assert_eq!(cache.len(), MAX_CACHE_SIZE);
 
-        // Access key-0 so it becomes recently used.
         cache.get("key-0");
 
-        // Insert one more to trigger eviction. key-1 should be the LRU
-        // (key-0 was just accessed, all others were inserted after key-1
-        // except key-0 which we refreshed).
         let extra = dummy_texture(&ctx, "extra");
         cache.insert("extra".to_string(), extra);
 
@@ -215,16 +203,13 @@ mod tests {
         let tex_b = dummy_texture(&ctx, "b");
         cache.insert("b".to_string(), tex_b);
 
-        // Access "a" to refresh its timestamp.
         cache.get("a");
 
-        // Fill the cache to capacity and then one more.
         for i in 0..MAX_CACHE_SIZE {
             let key = format!("fill-{i}");
             cache.insert(key.clone(), dummy_texture(&ctx, &key));
         }
 
-        // "b" was the LRU at the time of eviction, "a" was refreshed.
         assert!(cache.get("b").is_none(), "b should have been evicted");
     }
 
@@ -237,6 +222,7 @@ mod tests {
 
     #[test]
     fn quantize_width_rounds_to_step() {
+        use super::super::quantize_width;
         assert_eq!(quantize_width(600.0), 600);
         assert_eq!(quantize_width(624.0), 600);
         assert_eq!(quantize_width(625.0), 650);
@@ -245,6 +231,7 @@ mod tests {
 
     #[test]
     fn quantize_width_enforces_minimum() {
+        use super::super::quantize_width;
         assert_eq!(quantize_width(50.0), 100);
         assert_eq!(quantize_width(10.0), 100);
         assert_eq!(quantize_width(0.0), 100);

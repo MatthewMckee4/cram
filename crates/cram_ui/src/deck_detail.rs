@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use cram_core::Deck;
 use egui::{Context, Ui};
 
-use crate::app::{StudyMode, View};
+use crate::app::{StudyMode, StudyState, View};
 use crate::deck_list::{due_indices, shuffled_indices_from};
 use crate::style;
 
@@ -88,13 +88,13 @@ impl DeckDetailView {
                     {
                         let indices = due_indices(deck);
                         if !indices.is_empty() {
-                            *view = View::Study {
+                            *view = View::Study(StudyState {
                                 deck_name: deck.name().to_string(),
                                 card_index: 0,
                                 revealed: false,
                                 shuffled_indices: indices,
                                 study_mode: StudyMode::SpacedRepetition,
-                            };
+                            });
                         }
                     }
                     if ui
@@ -102,13 +102,13 @@ impl DeckDetailView {
                         .clicked()
                     {
                         let indices = deck.card_indices_matching_tags(study_tag_filter);
-                        *view = View::Study {
+                        *view = View::Study(StudyState {
                             deck_name: deck.name().to_string(),
                             card_index: 0,
                             revealed: false,
                             shuffled_indices: shuffled_indices_from(indices),
                             study_mode: StudyMode::Random,
-                        };
+                        });
                         study_tag_filter.clear();
                     }
                 });
