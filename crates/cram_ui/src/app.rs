@@ -14,7 +14,7 @@ use crate::editor::{EditorContext, EditorView, reset_card_collapse_states};
 use crate::search::SearchView;
 use crate::sources::{SourceStatus, SourcesView, SyncTask};
 use crate::stats::StatsView;
-use crate::study::{StudyContext, StudyView};
+use crate::study::{StudyContext, StudySession, show_study};
 use crate::style;
 use crate::texture_cache::{TextureCache, quantize_width};
 use crate::theme::Theme;
@@ -22,17 +22,12 @@ use crate::ui_state::UiState;
 use eframe::CreationContext;
 use egui::Context;
 
+/// The current screen of the application.
 #[derive(Default, Clone)]
 pub enum View {
     #[default]
     DeckList,
-    Study {
-        deck_name: String,
-        card_index: usize,
-        revealed: bool,
-        shuffled_indices: Vec<usize>,
-        study_mode: StudyMode,
-    },
+    Study(StudyState),
     Editor {
         deck_name: String,
         card_index: Option<usize>,
@@ -44,11 +39,25 @@ pub enum View {
     Search,
     Sources,
     Stats,
-    SessionSummary {
-        deck_name: String,
-        cards_reviewed: u32,
-        elapsed_secs: u64,
-    },
+    SessionSummary(SessionSummaryState),
+}
+
+/// Per-session study state stored in the [`View::Study`] variant.
+#[derive(Clone)]
+pub struct StudyState {
+    pub deck_name: String,
+    pub card_index: usize,
+    pub revealed: bool,
+    pub shuffled_indices: Vec<usize>,
+    pub study_mode: StudyMode,
+}
+
+/// Data shown on the session-complete screen.
+#[derive(Clone)]
+pub struct SessionSummaryState {
+    pub deck_name: String,
+    pub cards_reviewed: u32,
+    pub elapsed_secs: u64,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -67,8 +76,7 @@ pub struct CramApp {
     error_message: Option<String>,
     theme: Theme,
     search_query: String,
-    session_start: Option<std::time::Instant>,
-    session_reviewed: u32,
+    study_session: Option<StudySession>,
     preview_debounce: PreviewDebounce,
     fullscreen_preview: Option<String>,
     study_stats: StudyStats,
@@ -159,8 +167,7 @@ impl CramApp {
             error_message: None,
             theme,
             search_query: String::new(),
-            session_start: None,
-            session_reviewed: 0,
+            study_session: None,
             preview_debounce: PreviewDebounce::default(),
             fullscreen_preview: None,
             study_stats,
@@ -227,9 +234,8 @@ impl CramApp {
 impl View {
     fn deck_name(&self) -> Option<&str> {
         match self {
-            View::Study { deck_name, .. }
-            | View::Editor { deck_name, .. }
-            | View::DeckDetail { deck_name, .. } => Some(deck_name),
+            View::Study(s) => Some(&s.deck_name),
+            View::Editor { deck_name, .. } | View::DeckDetail { deck_name, .. } => Some(deck_name),
             _ => None,
         }
     }
@@ -359,62 +365,51 @@ impl eframe::App for CramApp {
                                 self.view = View::DeckList;
                             }
                         }
-                        View::Study {
-                            deck_name,
-                            mut card_index,
-                            mut revealed,
-                            shuffled_indices,
-                            study_mode,
-                        } => {
-                            let mut deck_only: Vec<Deck> =
-                                self.decks.iter().map(|(d, _)| d.clone()).collect();
-                            let mut sc = StudyContext {
-                                decks: &mut deck_only,
-                                deck_name: &deck_name,
-                                card_index: &mut card_index,
-                                revealed: &mut revealed,
-                                texture_cache: &mut self.texture_cache,
-                                view: &mut self.view,
-                                session_reviewed: &mut self.session_reviewed,
-                                session_start: &mut self.session_start,
-                                shuffled_indices: &shuffled_indices,
-                                study_mode,
-                            };
-                            StudyView::show(ui, ctx, &mut sc);
-                            for (i, (deck, _)) in self.decks.iter_mut().enumerate() {
-                                if i < deck_only.len() {
-                                    *deck = deck_only[i].clone();
-                                }
-                            }
-                            if let Some((deck, source)) =
-                                self.decks.iter().find(|(d, _)| d.name() == deck_name)
-                            {
-                                let _ = self.multi_store.save_deck(deck, source);
-                            }
-                            if let View::SessionSummary {
-                                deck_name: ref summary_deck,
-                                cards_reviewed,
-                                elapsed_secs,
-                            } = self.view
-                            {
-                                self.study_stats.record_session(
-                                    summary_deck.clone(),
-                                    chrono::Utc::now().date_naive(),
-                                    cards_reviewed,
-                                    elapsed_secs,
-                                );
-                                if let Err(e) = self.study_stats.save(self.multi_store.config_dir())
-                                {
-                                    tracing::warn!("failed to save study stats: {e}");
-                                }
-                            } else if matches!(self.view, View::Study { .. }) {
-                                self.view = View::Study {
-                                    deck_name,
-                                    card_index,
-                                    revealed,
-                                    shuffled_indices,
-                                    study_mode,
+                        View::Study(mut state) => {
+                            let deck_idx = self
+                                .decks
+                                .iter()
+                                .position(|(d, _)| d.name() == state.deck_name);
+                            if let Some(deck_idx) = deck_idx {
+                                let mut deck = self.decks[deck_idx].0.clone();
+                                let session =
+                                    self.study_session.get_or_insert_with(StudySession::new);
+                                let mut sc = StudyContext {
+                                    deck: &mut deck,
+                                    deck_name: &state.deck_name,
+                                    card_index: &mut state.card_index,
+                                    revealed: &mut state.revealed,
+                                    texture_cache: &mut self.texture_cache,
+                                    session,
+                                    view: &mut self.view,
+                                    shuffled_indices: &state.shuffled_indices,
+                                    study_mode: state.study_mode,
                                 };
+                                show_study(ui, ctx, &mut sc);
+
+                                self.decks[deck_idx].0 = deck;
+                                let _ = self
+                                    .multi_store
+                                    .save_deck(&self.decks[deck_idx].0, &self.decks[deck_idx].1);
+
+                                if let View::SessionSummary(ref summary) = self.view {
+                                    self.study_stats.record_session(
+                                        summary.deck_name.clone(),
+                                        chrono::Utc::now().date_naive(),
+                                        summary.cards_reviewed,
+                                        summary.elapsed_secs,
+                                    );
+                                    if let Err(e) =
+                                        self.study_stats.save(self.multi_store.config_dir())
+                                    {
+                                        tracing::warn!("failed to save study stats: {e}");
+                                    }
+                                    self.study_session = None;
+                                } else if matches!(self.view, View::Study(_)) {
+                                    self.view = View::Study(state);
+                                } else {
+                                    self.study_session = None;
+                                }
                             }
                         }
                         View::Editor {
@@ -487,11 +482,7 @@ impl eframe::App for CramApp {
                         View::Stats => {
                             StatsView::show(ui, &self.study_stats);
                         }
-                        View::SessionSummary {
-                            deck_name,
-                            cards_reviewed,
-                            elapsed_secs,
-                        } => {
+                        View::SessionSummary(summary) => {
                             ui.vertical_centered(|ui| {
                                 ui.add_space(60.0);
                                 style::card_frame(ui).show(ui, |ui| {
@@ -499,10 +490,13 @@ impl eframe::App for CramApp {
                                     ui.vertical_centered(|ui| {
                                         ui.heading("Session Complete");
                                         ui.add_space(style::SECTION_SPACING);
-                                        ui.label(format!("Deck: {deck_name}"));
-                                        ui.label(format!("Cards reviewed: {cards_reviewed}"));
-                                        let mins = elapsed_secs / 60;
-                                        let secs = elapsed_secs % 60;
+                                        ui.label(format!("Deck: {}", summary.deck_name));
+                                        ui.label(format!(
+                                            "Cards reviewed: {}",
+                                            summary.cards_reviewed
+                                        ));
+                                        let mins = summary.elapsed_secs / 60;
+                                        let secs = summary.elapsed_secs % 60;
                                         ui.label(format!("Time: {mins}m {secs}s"));
                                         ui.add_space(style::SECTION_SPACING);
                                         if ui.add(style::accent_button("Back to Decks")).clicked() {
