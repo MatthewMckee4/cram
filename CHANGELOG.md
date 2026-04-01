@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.1-alpha.5
+
+### New Features
+
+- Arrow key navigation, background pre-rendering, and study view refactor ([#110](https://github.com/MatthewMckee4/cram/pull/110))
+
+### Contributors
+
+- [@MatthewMckee4](https://github.com/MatthewMckee4)
+
 ## 0.0.1-alpha.4
 
 ### New Features
