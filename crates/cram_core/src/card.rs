@@ -11,6 +11,12 @@ pub struct Card {
     review: Option<ReviewState>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    hidden: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// Spaced-repetition scheduling state for a single card (SM-2 algorithm).
@@ -45,6 +51,7 @@ impl Card {
             back: back.into(),
             review: None,
             tags: Vec::new(),
+            hidden: false,
         }
     }
 
@@ -86,6 +93,14 @@ impl Card {
 
     pub fn has_tag(&self, tag: &str) -> bool {
         self.tags.iter().any(|t| t == tag)
+    }
+
+    pub fn is_hidden(&self) -> bool {
+        self.hidden
+    }
+
+    pub fn set_hidden(&mut self, hidden: bool) {
+        self.hidden = hidden;
     }
 }
 
@@ -154,6 +169,41 @@ mod tests {
         let state = ReviewState::default();
         card.set_review(state.clone());
         assert_eq!(card.review(), Some(&state));
+    }
+
+    #[test]
+    fn new_card_is_not_hidden() {
+        let card = Card::new("Q", "A");
+        assert!(!card.is_hidden());
+    }
+
+    #[test]
+    fn set_hidden_updates_state() {
+        let mut card = Card::new("Q", "A");
+        card.set_hidden(true);
+        assert!(card.is_hidden());
+        card.set_hidden(false);
+        assert!(!card.is_hidden());
+    }
+
+    #[test]
+    fn deserialize_missing_hidden_as_false() {
+        let toml_str = r#"
+            id = "00000000-0000-0000-0000-000000000001"
+            front = "Q"
+            back = "A"
+        "#;
+        let card: Card = toml::from_str(toml_str).expect("valid toml");
+        assert!(!card.is_hidden());
+    }
+
+    #[test]
+    fn hidden_roundtrips_through_toml() {
+        let mut card = Card::new("Q", "A");
+        card.set_hidden(true);
+        let s = toml::to_string(&card).expect("serialize");
+        let parsed: Card = toml::from_str(&s).expect("deserialize");
+        assert!(parsed.is_hidden());
     }
 
     #[test]

@@ -11,6 +11,14 @@ pub enum DeckDetailAction {
     Delete(String),
 }
 
+/// Indices of cards matching the tag filter, excluding hidden cards.
+fn visible_indices(deck: &Deck, tags: &BTreeSet<String>) -> Vec<usize> {
+    deck.card_indices_matching_tags(tags)
+        .into_iter()
+        .filter(|&i| !deck.cards()[i].is_hidden())
+        .collect()
+}
+
 pub struct DeckDetailView;
 
 impl DeckDetailView {
@@ -101,7 +109,7 @@ impl DeckDetailView {
                         .selectable_label(false, egui::RichText::new("Study (Random)").size(15.0))
                         .clicked()
                     {
-                        let indices = deck.card_indices_matching_tags(study_tag_filter);
+                        let indices = visible_indices(deck, study_tag_filter);
                         *view = View::Study(StudyState {
                             deck_name: deck.name().to_string(),
                             card_index: 0,
@@ -150,7 +158,7 @@ impl DeckDetailView {
                     }
                 });
                 if !study_tag_filter.is_empty() {
-                    let filtered = deck.card_indices_matching_tags(study_tag_filter);
+                    let filtered = visible_indices(deck, study_tag_filter);
                     ui.label(
                         egui::RichText::new(format!("{}/{total} cards match", filtered.len()))
                             .small()
