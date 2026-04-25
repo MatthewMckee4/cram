@@ -165,6 +165,13 @@ impl EditorView {
                                     ui.spacing_mut().interact_size.y = 28.0;
                                     ui.label(egui::RichText::new(format!("#{}", i + 1)).strong());
                                     ui.label(egui::RichText::new(&preview).weak().italics());
+                                    if deck.cards()[i].is_hidden() {
+                                        ui.label(
+                                            egui::RichText::new("hidden")
+                                                .small()
+                                                .color(ui.visuals().weak_text_color()),
+                                        );
+                                    }
                                     for tag in deck.cards()[i].tags() {
                                         ui.label(
                                             egui::RichText::new(tag).small().color(style::ACCENT),
@@ -249,6 +256,17 @@ impl EditorView {
                                                 .desired_width(col_w)
                                                 .layouter(&mut back_layouter),
                                             );
+
+                                            ui.add_space(8.0);
+                                            let mut hidden = deck.cards()[i].is_hidden();
+                                            if ui
+                                                .checkbox(&mut hidden, "Hidden (skip during study)")
+                                                .changed()
+                                            {
+                                                deck.cards_mut()[i].set_hidden(hidden);
+                                                let _ =
+                                                    ec.multi_store.save_deck(deck, ec.deck_source);
+                                            }
 
                                             ui.add_space(8.0);
                                             ui.label("Tags:");

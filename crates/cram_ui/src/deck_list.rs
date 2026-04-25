@@ -145,12 +145,13 @@ pub(crate) fn shuffled_indices_from(mut indices: Vec<usize>) -> Vec<usize> {
 }
 
 /// Return indices of cards that are due for review today.
+/// Hidden cards are excluded.
 pub(crate) fn due_indices(deck: &Deck) -> Vec<usize> {
     let today = Utc::now().date_naive();
     deck.cards()
         .iter()
         .enumerate()
-        .filter(|(_, card)| sm2::is_due(card.review(), today))
+        .filter(|(_, card)| !card.is_hidden() && sm2::is_due(card.review(), today))
         .map(|(i, _)| i)
         .collect()
 }
