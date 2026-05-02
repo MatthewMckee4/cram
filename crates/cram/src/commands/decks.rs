@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use crate::settings::GlobalSettings;
 use cram_core::Deck;
+use cram_render::{CheckResult, CompileError};
 use cram_store::{MultiStore, SourceKind, Store, exchange};
+use owo_colors::OwoColorize;
 
 fn store(settings: &GlobalSettings) -> anyhow::Result<Store> {
     match &settings.decks_dir {
@@ -148,6 +150,89 @@ pub fn import(settings: &GlobalSettings, path: PathBuf) -> anyhow::Result<()> {
         deck.cards().len()
     );
     Ok(())
+}
+
+pub fn check(settings: &GlobalSettings, name: Option<String>) -> anyhow::Result<()> {
+    let ms = multi_store(settings)?;
+    let decks = ms.load_all_decks()?;
+    let filtered: Vec<_> = match &name {
+        Some(n) => decks.iter().filter(|(d, _)| d.name() == n).collect(),
+        None => decks.iter().collect(),
+    };
+    if filtered.is_empty() {
+        if let Some(n) = name {
+            anyhow::bail!("deck not found: {n}");
+        }
+        println!("No decks found.");
+        return Ok(());
+    }
+
+    let mut total_cards = 0usize;
+    let mut total_errors = 0usize;
+    let mut total_warnings = 0usize;
+    let mut cards_with_errors = 0usize;
+
+    for (deck, _) in &filtered {
+        println!("{} ({} cards)", deck.name().bold(), deck.cards().len());
+        for card in deck.cards() {
+            total_cards += 1;
+            let front = cram_render::check(card.front());
+            let back = cram_render::check(card.back());
+            let card_has_error = !front.errors.is_empty() || !back.errors.is_empty();
+            if card_has_error {
+                cards_with_errors += 1;
+            }
+            total_errors += front.errors.len() + back.errors.len();
+            total_warnings += front.warnings.len() + back.warnings.len();
+            print_card_diagnostics(card.id(), "front", &front);
+            print_card_diagnostics(card.id(), "back", &back);
+        }
+    }
+
+    println!();
+    println!(
+        "Checked {} card{} across {} deck{}: {} error{}, {} warning{}{}",
+        total_cards,
+        if total_cards == 1 { "" } else { "s" },
+        filtered.len(),
+        if filtered.len() == 1 { "" } else { "s" },
+        total_errors,
+        if total_errors == 1 { "" } else { "s" },
+        total_warnings,
+        if total_warnings == 1 { "" } else { "s" },
+        if cards_with_errors > 0 {
+            format!(" ({cards_with_errors} card(s) failed)")
+        } else {
+            String::new()
+        },
+    );
+
+    if total_errors > 0 {
+        anyhow::bail!("compile errors found");
+    }
+    Ok(())
+}
+
+fn print_card_diagnostics(card_id: impl std::fmt::Display, side: &str, result: &CheckResult) {
+    if result.is_clean() {
+        return;
+    }
+    let card_id = card_id.to_string();
+    for err in &result.errors {
+        print_diagnostic(&card_id, side, "error", err, true);
+    }
+    for warn in &result.warnings {
+        print_diagnostic(&card_id, side, "warning", warn, false);
+    }
+}
+
+fn print_diagnostic(card_id: &str, side: &str, level: &str, diag: &CompileError, is_error: bool) {
+    let head = if is_error {
+        format!("  {} card {card_id} ({side}):", level.red().bold())
+    } else {
+        format!("  {} card {card_id} ({side}):", level.yellow().bold())
+    };
+    println!("{head} {diag}");
 }
 
 pub fn sources(settings: &GlobalSettings) -> anyhow::Result<()> {

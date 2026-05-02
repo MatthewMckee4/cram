@@ -18,6 +18,7 @@ axoupdater.workspace = true
 clap.workspace = true
 cram_cli.workspace = true
 cram_core.workspace = true
+cram_render.workspace = true
 cram_store.workspace = true
 cram_ui.workspace = true
 dirs.workspace = true

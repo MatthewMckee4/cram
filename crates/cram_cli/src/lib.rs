@@ -80,6 +80,12 @@ pub enum DecksCommand {
     Sources,
     /// Sync all linked sources (git pull)
     Sync,
+    /// Compile every card's Typst source and report errors and warnings
+    Check {
+        /// Only check the deck with this name (defaults to all decks)
+        #[arg(long)]
+        name: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
