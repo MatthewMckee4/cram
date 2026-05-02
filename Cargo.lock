@@ -1301,6 +1301,7 @@ dependencies = [
  "clap",
  "cram_cli",
  "cram_core",
+ "cram_render",
  "cram_store",
  "cram_ui",
  "dirs",

@@ -65,6 +65,7 @@ fn run(cli: Cli, settings: &GlobalSettings) -> anyhow::Result<ExitStatus> {
             DecksCommand::Unlink { path } => commands::decks::unlink(settings, path)?,
             DecksCommand::Sources => commands::decks::sources(settings)?,
             DecksCommand::Sync => commands::sync::sync(settings)?,
+            DecksCommand::Check { name } => commands::decks::check(settings, name)?,
         },
         Some(Command::Self_ { command }) => match command {
             SelfCommand::Update { token, prerelease } => {

@@ -3,11 +3,65 @@ mod world;
 
 pub use error::{CompileError, RenderError};
 
+use typst::diag::SourceDiagnostic;
 use typst::layout::PagedDocument;
 use world::CramWorld;
 
 /// Number of lines the internal preamble adds before the user's source.
 const PREAMBLE_LINES: usize = 2;
+
+/// Result of a compile-only check against a Typst source string.
+#[derive(Debug, Default, Clone)]
+pub struct CheckResult {
+    pub errors: Vec<CompileError>,
+    pub warnings: Vec<CompileError>,
+}
+
+impl CheckResult {
+    pub fn is_clean(&self) -> bool {
+        self.errors.is_empty() && self.warnings.is_empty()
+    }
+}
+
+/// Compile a Typst source string without rendering or encoding, returning
+/// any errors and warnings produced. Uses the same preamble as [`render`]
+/// so diagnostics line up with what the renderer would report.
+pub fn check(source: &str) -> CheckResult {
+    let world = CramWorld::new(source);
+    let result = typst::compile::<PagedDocument>(&world);
+    let main = world.main_source();
+    let errors = match result.output {
+        Ok(_) => Vec::new(),
+        Err(diags) => diags.iter().map(|d| diag_to_compile(d, main, 0)).collect(),
+    };
+    let warnings = result
+        .warnings
+        .iter()
+        .map(|d| diag_to_compile(d, main, 0))
+        .collect();
+    CheckResult { errors, warnings }
+}
+
+fn diag_to_compile(
+    diag: &SourceDiagnostic,
+    source: &typst::syntax::Source,
+    line_offset: usize,
+) -> CompileError {
+    let (line, column) = source
+        .range(diag.span)
+        .and_then(|range| source.lines().byte_to_line_column(range.start))
+        .map(|(l, c)| {
+            let user_line = l.saturating_sub(line_offset) + 1;
+            (Some(user_line), Some(c + 1))
+        })
+        .unwrap_or((None, None));
+    CompileError {
+        line,
+        column,
+        message: diag.message.to_string(),
+        hints: diag.hints.iter().map(|h| h.to_string()).collect(),
+    }
+}
 
 /// Render a Typst source string to PNG bytes at 2x pixel density.
 /// The page is auto-sized to the content (not A4).
@@ -47,22 +101,7 @@ pub fn render_with_width(
         let source = world.main_source();
         let errors = diagnostics
             .iter()
-            .map(|diag| {
-                let (line, column) = source
-                    .range(diag.span)
-                    .and_then(|range| source.lines().byte_to_line_column(range.start))
-                    .map(|(l, c)| {
-                        let user_line = l.saturating_sub(PREAMBLE_LINES) + 1;
-                        (Some(user_line), Some(c + 1))
-                    })
-                    .unwrap_or((None, None));
-                CompileError {
-                    line,
-                    column,
-                    message: diag.message.to_string(),
-                    hints: diag.hints.iter().map(|h| h.to_string()).collect(),
-                }
-            })
+            .map(|diag| diag_to_compile(diag, source, PREAMBLE_LINES))
             .collect();
         RenderError::Compile(errors)
     })?;
@@ -165,6 +204,28 @@ mod tests {
         let bytes = render_with_width("= Hello World", false, Some(200.0)).expect("render failed");
         assert!(!bytes.is_empty());
         assert_eq!(&bytes[..4], b"\x89PNG");
+    }
+
+    #[test]
+    fn check_clean_source_has_no_errors_or_warnings() {
+        let result = check("= Hello");
+        assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+        assert!(result.is_clean());
+    }
+
+    #[test]
+    fn check_reports_compile_errors() {
+        let result = check("#unknown_func()");
+        assert!(!result.errors.is_empty());
+        assert!(!result.is_clean());
+    }
+
+    #[test]
+    fn check_error_lines_match_user_source() {
+        let result = check("hello\n#let x = ");
+        let first = result.errors.first().expect("expected an error");
+        let line = first.line.expect("expected a line number");
+        assert!(line >= 1, "line should be in user source, got {line}");
     }
 
     #[test]
