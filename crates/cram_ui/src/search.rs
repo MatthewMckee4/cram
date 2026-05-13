@@ -15,10 +15,7 @@ impl SearchView {
             ui.heading("Search Cards");
             ui.add_space(12.0);
 
-            ui.horizontal(|ui| {
-                ui.label("Query:");
-                ui.text_edit_singleline(query);
-            });
+            crate::components::text_input(ui, query, "Search cards across all decks…");
             ui.add_space(12.0);
 
             if query.trim().is_empty() {

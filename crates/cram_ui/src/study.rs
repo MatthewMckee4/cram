@@ -217,7 +217,7 @@ fn show_card(ui: &mut Ui, render_result: &Result<TextureHandle, String>, card_so
 
 fn show_reveal_button(ui: &mut Ui, revealed: &mut bool) {
     ui.vertical_centered(|ui| {
-        let btn = style::accent_button("Show Answer  [Space / Right]")
+        let btn = crate::components::primary(ui, "Show Answer  [Space / Right]")
             .min_size(egui::vec2(240.0, 44.0))
             .corner_radius(8.0);
         if ui.add(btn).clicked()
@@ -230,7 +230,7 @@ fn show_reveal_button(ui: &mut Ui, revealed: &mut bool) {
 
 fn show_random_next(ui: &mut Ui, sc: &mut StudyContext<'_>, total: usize) {
     ui.vertical_centered(|ui| {
-        let btn = style::accent_button("Next  [Space / Right]")
+        let btn = crate::components::primary(ui, "Next  [Space / Right]")
             .min_size(egui::vec2(240.0, 44.0))
             .corner_radius(8.0);
         if ui.add(btn).clicked()

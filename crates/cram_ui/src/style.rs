@@ -1,57 +1,20 @@
-use egui::{Color32, Shadow, Stroke, Ui};
+//! Compatibility shim re-exporting the most-used `components` items under
+//! the older `style::` name. New code should reach for `crate::components`
+//! directly; this module exists to keep the diff manageable while the UI
+//! migrates over.
 
-pub const CARD_RADIUS: f32 = 10.0;
-pub const BUTTON_RADIUS: f32 = 8.0;
-pub const CARD_MARGIN: f32 = 20.0;
-pub const ACCENT: Color32 = Color32::from_rgb(59, 130, 246);
-pub const DESTRUCTIVE: Color32 = Color32::from_rgb(220, 50, 50);
-pub const CONTENT_PADDING: f32 = 24.0;
-pub const SECTION_SPACING: f32 = 20.0;
-pub const ITEM_SPACING: f32 = 12.0;
+use egui::{Color32, Frame, Ui};
 
-pub fn card_shadow() -> Shadow {
-    Shadow {
-        spread: 0,
-        blur: 8,
-        offset: [0, 2],
-        color: Color32::from_black_alpha(20),
-    }
-}
+pub use crate::components::tokens::{
+    CARD_PADDING as CARD_MARGIN, CONTENT_PADDING, ITEM_SPACING, SECTION_SPACING,
+};
 
-/// Standard card frame used across all views.
-pub fn card_frame(ui: &Ui) -> egui::Frame {
-    egui::Frame::new()
-        .fill(ui.visuals().faint_bg_color)
-        .corner_radius(CARD_RADIUS)
-        .inner_margin(CARD_MARGIN)
-        .shadow(card_shadow())
-        .stroke(Stroke::new(
-            1.0,
-            ui.visuals().widgets.noninteractive.bg_stroke.color,
-        ))
-}
+/// Brand accent used for foreground highlights (saved chips, matched terms).
+/// shadcn's neutral palette has no fixed accent hue, so we pick blue-500 —
+/// the same shade used by shadcn's default chart-1 and focus rings in
+/// non-neutral themes.
+pub const ACCENT: Color32 = Color32::from_rgb(0x3B, 0x82, 0xF6);
 
-const BUTTON_MIN_SIZE: egui::Vec2 = egui::vec2(64.0, 34.0);
-
-/// Primary action button with accent fill and white text.
-pub fn accent_button(text: &str) -> egui::Button<'_> {
-    egui::Button::new(egui::RichText::new(text).color(Color32::WHITE))
-        .fill(ACCENT)
-        .corner_radius(BUTTON_RADIUS)
-        .min_size(BUTTON_MIN_SIZE)
-}
-
-/// Secondary action button with consistent radius and min size.
-pub fn secondary_button(text: &str) -> egui::Button<'_> {
-    egui::Button::new(text)
-        .corner_radius(BUTTON_RADIUS)
-        .min_size(BUTTON_MIN_SIZE)
-}
-
-/// Destructive action button with red fill and white text.
-pub fn destructive_button(text: &str) -> egui::Button<'_> {
-    egui::Button::new(egui::RichText::new(text).color(Color32::WHITE))
-        .fill(DESTRUCTIVE)
-        .corner_radius(BUTTON_RADIUS)
-        .min_size(BUTTON_MIN_SIZE)
+pub fn card_frame(ui: &Ui) -> Frame {
+    crate::components::card_frame(ui)
 }

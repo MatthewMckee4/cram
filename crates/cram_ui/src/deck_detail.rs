@@ -45,11 +45,14 @@ impl DeckDetailView {
                     ));
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.add(style::destructive_button("Delete")).clicked() {
+                        if ui
+                            .add(crate::components::destructive(ui, "Delete"))
+                            .clicked()
+                        {
                             action = Some(DeckDetailAction::Delete(deck_name));
                             *confirm_delete = None;
                         }
-                        if ui.add(style::secondary_button("Cancel")).clicked() {
+                        if ui.add(crate::components::outline(ui, "Cancel")).clicked() {
                             *confirm_delete = None;
                         }
                     });
@@ -66,7 +69,10 @@ impl DeckDetailView {
                 ui.heading(deck.name());
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
-                    if ui.add(style::destructive_button("Delete")).clicked() {
+                    if ui
+                        .add(crate::components::destructive(ui, "Delete"))
+                        .clicked()
+                    {
                         *confirm_delete = Some(deck.name().to_string());
                     }
                     if ui

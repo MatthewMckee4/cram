@@ -187,7 +187,7 @@ impl CramApp {
 
         let ui_state = UiState::load(multi_store.config_dir()).unwrap_or_default();
         let theme = ui_state.theme.unwrap_or_default();
-        cc.egui_ctx.set_visuals(theme.visuals());
+        theme.apply(&cc.egui_ctx);
 
         let mut app = Self {
             multi_store,
@@ -345,21 +345,13 @@ impl eframe::App for CramApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         let prev_was_editor = matches!(self.view, View::Editor { .. });
         let prev_deck = self.view.deck_name().map(str::to_string);
-        egui::TopBottomPanel::top("topbar")
-            .frame(
-                egui::Frame::new()
-                    .fill(ctx.style().visuals.panel_fill)
-                    .inner_margin(egui::Margin::symmetric(16, 10)),
-            )
+        let topbar_response = egui::TopBottomPanel::top("topbar")
+            .frame(crate::components::topbar_frame(self.theme.is_dark()))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
-                    egui::Frame::new()
-                        .inner_margin(egui::Margin::symmetric(0, 6))
-                        .show(ui, |ui| {
-                            ui.label(egui::RichText::new("Cram").strong().size(18.0));
-                        });
-                    ui.separator();
+                    ui.add_space(crate::components::SPACE_1);
+                    ui.label(egui::RichText::new("Cram").strong().size(18.0));
+                    ui.add_space(crate::components::SPACE_5);
                     let nav = [
                         ("Decks", View::DeckList),
                         ("Search", View::Search),
@@ -372,50 +364,58 @@ impl eframe::App for CramApp {
                         } else {
                             std::mem::discriminant(&self.view) == std::mem::discriminant(&target)
                         };
-                        let text = egui::RichText::new(label).size(15.0);
-                        if ui.selectable_label(active, text).clicked() {
+                        if crate::components::nav_tab(ui, label, active).clicked() {
                             self.view = target;
                         }
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let prev = self.theme;
-                        if ui
-                            .selectable_label(false, egui::RichText::new("Sync").size(15.0))
+                        if crate::components::nav_tab(ui, "Sync", false)
                             .on_hover_text("Reload decks from disk (picks up external edits)")
                             .clicked()
                         {
                             self.reload_decks();
                             self.texture_cache.clear();
                         }
-                        egui::ComboBox::from_id_salt("theme_picker")
-                            .selected_text(self.theme.name())
-                            .show_ui(ui, |ui| {
-                                for t in Theme::ALL {
-                                    ui.selectable_value(&mut self.theme, t, t.name());
-                                }
-                            });
+                        let toggle_label = if self.theme.is_dark() { "☀" } else { "☾" };
+                        if crate::components::nav_tab(ui, toggle_label, false)
+                            .on_hover_text("Toggle light/dark theme")
+                            .clicked()
+                        {
+                            self.theme = self.theme.toggled();
+                        }
                         if self.theme != prev {
-                            ctx.set_visuals(self.theme.visuals());
+                            self.theme.apply(ctx);
                             self.texture_cache.clear();
                             self.save_ui_state();
                         }
                     });
                 });
             });
+        crate::components::paint_bottom_border(ctx, topbar_response.response.rect);
 
         if let Some(err) = &self.error_message.clone() {
-            let bg = if self.theme.is_dark() {
-                egui::Color32::from_rgb(80, 20, 20)
-            } else {
-                egui::Color32::from_rgb(254, 226, 226)
-            };
+            let palette = self.theme.palette();
+            let bg =
+                palette
+                    .destructive
+                    .gamma_multiply(if self.theme.is_dark() { 0.18 } else { 0.12 });
             egui::TopBottomPanel::bottom("errors")
-                .frame(egui::Frame::new().fill(bg).inner_margin(8.0))
+                .frame(
+                    egui::Frame::new()
+                        .fill(bg)
+                        .stroke(egui::Stroke::new(1.0, palette.destructive))
+                        .corner_radius(crate::components::RADIUS_MD)
+                        .inner_margin(egui::Margin::symmetric(
+                            crate::components::SPACE_4 as i8,
+                            crate::components::SPACE_3 as i8,
+                        )),
+                )
                 .show(ctx, |ui| {
                     ui.horizontal(|ui| {
-                        ui.colored_label(egui::Color32::RED, err);
+                        ui.label(egui::RichText::new(err).color(palette.destructive).strong());
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button("✕").clicked() {
+                            if ui.add(crate::components::ghost(ui, "✕")).clicked() {
                                 self.error_message = None;
                             }
                         });
@@ -597,7 +597,10 @@ impl eframe::App for CramApp {
                                         let secs = summary.elapsed_secs % 60;
                                         ui.label(format!("Time: {mins}m {secs}s"));
                                         ui.add_space(style::SECTION_SPACING);
-                                        if ui.add(style::accent_button("Back to Decks")).clicked() {
+                                        if ui
+                                            .add(crate::components::primary(ui, "Back to Decks"))
+                                            .clicked()
+                                        {
                                             self.view = View::DeckList;
                                         }
                                     });
@@ -609,16 +612,24 @@ impl eframe::App for CramApp {
                                 ui.add_space(80.0);
                                 style::card_frame(ui).show(ui, |ui| {
                                     ui.set_max_width(400.0);
-                                    ui.vertical_centered(|ui| {
+                                    ui.vertical(|ui| {
                                         ui.heading("New Deck");
+                                        ui.add_space(crate::components::SPACE_2);
+                                        ui.label(
+                                            egui::RichText::new("Name")
+                                                .color(self.theme.palette().muted_foreground),
+                                        );
+                                        ui.add_space(crate::components::SPACE_1);
+                                        crate::components::text_input(
+                                            ui,
+                                            &mut self.new_deck_name,
+                                            "e.g. Rust Basics",
+                                        );
                                         ui.add_space(style::SECTION_SPACING);
                                         ui.horizontal(|ui| {
-                                            ui.label("Name:");
-                                            ui.text_edit_singleline(&mut self.new_deck_name);
-                                        });
-                                        ui.add_space(style::ITEM_SPACING);
-                                        ui.horizontal(|ui| {
-                                            if ui.add(style::accent_button("Create")).clicked()
+                                            if ui
+                                                .add(crate::components::primary(ui, "Create"))
+                                                .clicked()
                                                 && !self.new_deck_name.is_empty()
                                             {
                                                 let deck = Deck::new(self.new_deck_name.trim(), "");
@@ -640,7 +651,10 @@ impl eframe::App for CramApp {
                                                     self.new_deck_name.clear();
                                                 }
                                             }
-                                            if ui.add(style::secondary_button("Cancel")).clicked() {
+                                            if ui
+                                                .add(crate::components::outline(ui, "Cancel"))
+                                                .clicked()
+                                            {
                                                 self.view = View::DeckList;
                                             }
                                         });
@@ -731,23 +745,33 @@ impl CramApp {
                     egui::ScrollArea::vertical()
                         .max_height(240.0)
                         .show(ui, |ui| {
-                            ui.add(
-                                egui::TextEdit::multiline(&mut on_disk.as_str())
-                                    .font(egui::TextStyle::Monospace)
-                                    .desired_width(ui.available_width())
-                                    .interactive(false),
-                            );
+                            crate::components::input_frame(ui).show(ui, |ui| {
+                                ui.add(
+                                    egui::TextEdit::multiline(&mut on_disk.as_str())
+                                        .font(egui::TextStyle::Monospace)
+                                        .desired_width(ui.available_width())
+                                        .frame(false)
+                                        .margin(egui::Margin::ZERO)
+                                        .interactive(false),
+                                );
+                            });
                         });
                 });
-                ui.add_space(8.0);
+                ui.add_space(crate::components::SPACE_3);
                 ui.horizontal(|ui| {
-                    if ui.button("Reload from disk").clicked() {
+                    if ui
+                        .add(crate::components::outline(ui, "Reload from disk"))
+                        .clicked()
+                    {
                         reload = true;
                     }
-                    if ui.button("Overwrite disk").clicked() {
+                    if ui
+                        .add(crate::components::destructive(ui, "Overwrite disk"))
+                        .clicked()
+                    {
                         overwrite = true;
                     }
-                    if ui.button("Cancel").clicked() {
+                    if ui.add(crate::components::ghost(ui, "Cancel")).clicked() {
                         dismiss = true;
                     }
                 });

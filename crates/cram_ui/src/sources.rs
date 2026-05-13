@@ -409,7 +409,10 @@ fn show_source_entry(
                 });
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add(style::destructive_button("Unlink")).clicked() {
+                    if ui
+                        .add(crate::components::destructive(ui, "Unlink"))
+                        .clicked()
+                    {
                         *unlink_path = Some(entry.path.clone());
                     }
                 });

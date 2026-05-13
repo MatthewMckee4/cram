@@ -1,4 +1,5 @@
 mod app;
+mod components;
 mod deck_detail;
 mod deck_list;
 mod editor;
