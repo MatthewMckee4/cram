@@ -139,14 +139,7 @@ impl EditorView {
                 let count = deck.cards().len();
 
                 for i in 0..count {
-                    let preview = {
-                        let f = deck.cards()[i].front();
-                        if f.len() > 50 {
-                            format!("{}...", &f[..50])
-                        } else {
-                            f.to_string()
-                        }
-                    };
+                    let preview = card_preview(deck.cards()[i].front(), 50);
 
                     ui.push_id(i, |ui| {
                         style::card_frame(ui).show(ui, |ui| {
@@ -479,6 +472,16 @@ fn hash_source(source: &str) -> u64 {
     hasher.finish()
 }
 
+/// Truncates `text` to at most `max_chars` characters, appending `...` if shortened.
+/// Slices on character boundaries so multi-byte glyphs (e.g. `⇒`) don't panic.
+fn card_preview(text: &str, max_chars: usize) -> String {
+    if let Some((end, _)) = text.char_indices().nth(max_chars) {
+        format!("{}...", &text[..end])
+    } else {
+        text.to_string()
+    }
+}
+
 /// Stable ID for card collapsing state that is independent of UI scope.
 fn card_collapsing_id(index: usize) -> egui::Id {
     egui::Id::new(("editor_card_collapse", index))
@@ -503,5 +506,29 @@ pub fn reset_card_collapse_states(ctx: &Context, count: usize) {
             state.set_open(false);
             state.store(ctx);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::card_preview;
+
+    #[test]
+    fn preview_shorter_than_limit_is_unchanged() {
+        assert_eq!(card_preview("hello", 50), "hello");
+    }
+
+    #[test]
+    fn preview_truncates_on_char_boundary_for_multibyte_glyph() {
+        let s = "Prove the reverse direction of FTAP ($Q$ exists ⇒ no arbitrage)";
+        let out = card_preview(s, 50);
+        assert_eq!(out, "Prove the reverse direction of FTAP ($Q$ exists ⇒ ...");
+    }
+
+    #[test]
+    fn preview_truncates_ascii_at_exact_char_count() {
+        let s = "a".repeat(100);
+        let out = card_preview(&s, 50);
+        assert_eq!(out, format!("{}...", "a".repeat(50)));
     }
 }
