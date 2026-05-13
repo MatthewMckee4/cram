@@ -110,8 +110,6 @@ jobs:
 
       - name: "Install cargo nextest"
         uses: taiki-e/install-action@a416ddeedbd372e614cc1386e8b642692f66865e # v2.57.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tool: cargo-nextest
 
