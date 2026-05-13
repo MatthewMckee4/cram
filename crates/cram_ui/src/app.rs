@@ -5,7 +5,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use cram_core::Deck;
-use cram_store::{DeckSource, MultiStore, Store, StudyStats};
+use cram_store::{DeckSource, MultiStore, SaveOutcome, Store, StudyStats, serialize_deck};
 
 use crate::deck_detail::{DeckDetailAction, DeckDetailView};
 use crate::deck_list::DeckListAction;
@@ -67,9 +67,35 @@ pub enum StudyMode {
     SpacedRepetition,
 }
 
+/// A loaded deck together with its origin and the on-disk content baseline
+/// used to detect external edits when saving.
+pub struct DeckEntry {
+    pub deck: Deck,
+    pub source: DeckSource,
+    /// Serialized TOML matching what we last loaded from or wrote to disk.
+    pub baseline: String,
+    /// On-disk content captured when an external edit was detected; the UI
+    /// surfaces this so the user can resolve the conflict.
+    pub conflict: Option<String>,
+    /// Editor has pending in-memory changes that haven't been flushed to disk yet.
+    pub dirty: bool,
+}
+
+impl DeckEntry {
+    pub fn new(deck: Deck, source: DeckSource, baseline: String) -> Self {
+        Self {
+            deck,
+            source,
+            baseline,
+            conflict: None,
+            dirty: false,
+        }
+    }
+}
+
 pub struct CramApp {
     multi_store: MultiStore,
-    decks: Vec<(Deck, DeckSource)>,
+    decks: Vec<DeckEntry>,
     view: View,
     new_deck_name: String,
     texture_cache: TextureCache,
@@ -151,7 +177,12 @@ fn config_dir_for_store(store: &Store) -> PathBuf {
 impl CramApp {
     pub fn new(cc: &CreationContext) -> Self {
         let multi_store = build_multi_store();
-        let decks = multi_store.load_all_decks().unwrap_or_default();
+        let decks = multi_store
+            .load_all_decks_with_baseline()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(d, s, b)| DeckEntry::new(d, s, b))
+            .collect();
         let study_stats = StudyStats::load(multi_store.config_dir()).unwrap_or_default();
 
         let ui_state = UiState::load(multi_store.config_dir()).unwrap_or_default();
@@ -211,12 +242,81 @@ impl CramApp {
         if let Err(e) = self.multi_store.save_deck(&deck, &DeckSource::Local) {
             tracing::warn!("failed to save sample deck: {e}");
         } else {
-            self.decks.push((deck, DeckSource::Local));
+            let baseline = serialize_deck(&deck).unwrap_or_default();
+            self.decks
+                .push(DeckEntry::new(deck, DeckSource::Local, baseline));
         }
     }
 
     fn reload_decks(&mut self) {
-        self.decks = self.multi_store.load_all_decks().unwrap_or_default();
+        self.decks = self
+            .multi_store
+            .load_all_decks_with_baseline()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(d, s, b)| DeckEntry::new(d, s, b))
+            .collect();
+    }
+
+    /// Save the deck at `idx` to disk, honoring baselines so external edits
+    /// aren't clobbered. On conflict, the on-disk content is stashed on the
+    /// entry so the UI can prompt the user.
+    fn save_deck_at(&mut self, idx: usize) {
+        let Some(entry) = self.decks.get_mut(idx) else {
+            return;
+        };
+        match self
+            .multi_store
+            .save_deck_if_changed(&entry.deck, &entry.source, &mut entry.baseline)
+        {
+            Ok(SaveOutcome::Unchanged | SaveOutcome::Written) => {
+                entry.dirty = false;
+                entry.conflict = None;
+            }
+            Ok(SaveOutcome::Conflict { on_disk }) => {
+                entry.conflict = Some(on_disk);
+            }
+            Err(e) => {
+                tracing::warn!("failed to save deck '{}': {e}", entry.deck.name());
+            }
+        }
+    }
+
+    /// Force-write `idx` to disk, ignoring conflicts. Used when the user
+    /// explicitly chooses to overwrite externally-modified content.
+    fn force_save_deck_at(&mut self, idx: usize) {
+        let Some(entry) = self.decks.get_mut(idx) else {
+            return;
+        };
+        match self.multi_store.save_deck(&entry.deck, &entry.source) {
+            Ok(()) => {
+                entry.baseline = serialize_deck(&entry.deck).unwrap_or_default();
+                entry.dirty = false;
+                entry.conflict = None;
+            }
+            Err(e) => {
+                tracing::warn!("failed to force-save deck '{}': {e}", entry.deck.name());
+            }
+        }
+    }
+
+    /// Reload a single deck's in-memory state from disk, discarding any
+    /// unsaved in-memory changes.
+    fn reload_deck_at(&mut self, idx: usize) {
+        let Some(entry) = self.decks.get(idx) else {
+            return;
+        };
+        let name = entry.deck.name().to_string();
+        self.multi_store.invalidate_cache();
+        let fresh = self
+            .multi_store
+            .load_all_decks_with_baseline()
+            .unwrap_or_default()
+            .into_iter()
+            .find(|(d, _, _)| d.name() == name);
+        if let Some((deck, source, baseline)) = fresh {
+            self.decks[idx] = DeckEntry::new(deck, source, baseline);
+        }
     }
 
     /// Persist current UI state (theme, last deck) to `ui_state.toml`.
@@ -279,6 +379,14 @@ impl eframe::App for CramApp {
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let prev = self.theme;
+                        if ui
+                            .selectable_label(false, egui::RichText::new("Sync").size(15.0))
+                            .on_hover_text("Reload decks from disk (picks up external edits)")
+                            .clicked()
+                        {
+                            self.reload_decks();
+                            self.texture_cache.clear();
+                        }
                         egui::ComboBox::from_id_salt("theme_picker")
                             .selected_text(self.theme.name())
                             .show_ui(ui, |ui| {
@@ -323,7 +431,7 @@ impl eframe::App for CramApp {
                     match view {
                         View::DeckList => {
                             let deck_refs: Vec<(&Deck, &DeckSource)> =
-                                self.decks.iter().map(|(d, s)| (d, s)).collect();
+                                self.decks.iter().map(|e| (&e.deck, &e.source)).collect();
                             if let Some(action) = DeckListView::show(
                                 ui,
                                 ctx,
@@ -342,8 +450,8 @@ impl eframe::App for CramApp {
                             if let Some(deck) = self
                                 .decks
                                 .iter()
-                                .find(|(d, _)| d.name() == deck_name)
-                                .map(|(d, _)| d.clone())
+                                .find(|e| e.deck.name() == deck_name)
+                                .map(|e| e.deck.clone())
                             {
                                 if let Some(action) = DeckDetailView::show(
                                     ui,
@@ -369,9 +477,9 @@ impl eframe::App for CramApp {
                             let deck_idx = self
                                 .decks
                                 .iter()
-                                .position(|(d, _)| d.name() == state.deck_name);
+                                .position(|e| e.deck.name() == state.deck_name);
                             if let Some(deck_idx) = deck_idx {
-                                let mut deck = self.decks[deck_idx].0.clone();
+                                let mut deck = self.decks[deck_idx].deck.clone();
                                 let session =
                                     self.study_session.get_or_insert_with(StudySession::new);
                                 let mut sc = StudyContext {
@@ -387,10 +495,8 @@ impl eframe::App for CramApp {
                                 };
                                 show_study(ui, ctx, &mut sc);
 
-                                self.decks[deck_idx].0 = deck;
-                                let _ = self
-                                    .multi_store
-                                    .save_deck(&self.decks[deck_idx].0, &self.decks[deck_idx].1);
+                                self.decks[deck_idx].deck = deck;
+                                self.save_deck_at(deck_idx);
 
                                 if let View::SessionSummary(ref summary) = self.view {
                                     self.study_stats.record_session(
@@ -416,45 +522,37 @@ impl eframe::App for CramApp {
                             deck_name,
                             card_index,
                         } => {
-                            let source = self
-                                .decks
-                                .iter()
-                                .find(|(d, _)| d.name() == deck_name)
-                                .map(|(_, s)| s.clone())
-                                .unwrap_or(DeckSource::Local);
-                            let mut deck_only: Vec<Deck> =
-                                self.decks.iter().map(|(d, _)| d.clone()).collect();
-                            let mut ec = EditorContext {
-                                decks: &mut deck_only,
-                                deck_name: &deck_name,
-                                card_index,
-                                multi_store: &self.multi_store,
-                                deck_source: &source,
-                                texture_cache: &mut self.texture_cache,
-                                preview_debounce: &mut self.preview_debounce,
-                                save_feedback: &mut self.save_feedback,
-                                tag_input: &mut self.tag_input,
-                            };
-                            let back = EditorView::show(ui, ctx, &mut ec);
-                            // Write modified decks back
-                            for (i, (deck, _src)) in self.decks.iter_mut().enumerate() {
-                                if i < deck_only.len() {
-                                    *deck = deck_only[i].clone();
-                                }
-                            }
-                            self.view = if back {
-                                View::DeckDetail {
-                                    deck_name: deck_name.clone(),
-                                }
-                            } else {
-                                View::Editor {
-                                    deck_name,
+                            let idx = self.decks.iter().position(|e| e.deck.name() == deck_name);
+                            if let Some(idx) = idx {
+                                let mut ec = EditorContext {
+                                    entry: &mut self.decks[idx],
                                     card_index,
+                                    texture_cache: &mut self.texture_cache,
+                                    preview_debounce: &mut self.preview_debounce,
+                                    save_feedback: &mut self.save_feedback,
+                                    tag_input: &mut self.tag_input,
+                                };
+                                let back = EditorView::show(ui, ctx, &mut ec);
+                                if self.decks[idx].dirty {
+                                    self.save_deck_at(idx);
                                 }
-                            };
+                                self.view = if back {
+                                    View::DeckDetail {
+                                        deck_name: deck_name.clone(),
+                                    }
+                                } else {
+                                    View::Editor {
+                                        deck_name,
+                                        card_index,
+                                    }
+                                };
+                            } else {
+                                self.view = View::DeckList;
+                            }
                         }
                         View::Search => {
-                            let deck_only: Vec<&Deck> = self.decks.iter().map(|(d, _)| d).collect();
+                            let deck_only: Vec<&Deck> =
+                                self.decks.iter().map(|e| &e.deck).collect();
                             if let Some((deck_name, card_index)) =
                                 SearchView::show(ui, &deck_only, &mut self.search_query)
                             {
@@ -531,7 +629,13 @@ impl eframe::App for CramApp {
                                                     self.error_message =
                                                         Some(format!("Failed to save: {e}"));
                                                 } else {
-                                                    self.decks.push((deck, DeckSource::Local));
+                                                    let baseline =
+                                                        serialize_deck(&deck).unwrap_or_default();
+                                                    self.decks.push(DeckEntry::new(
+                                                        deck,
+                                                        DeckSource::Local,
+                                                        baseline,
+                                                    ));
                                                     self.view = View::DeckList;
                                                     self.new_deck_name.clear();
                                                 }
@@ -552,13 +656,15 @@ impl eframe::App for CramApp {
             self.show_fullscreen_preview(ctx);
         }
 
+        self.show_conflict_modal(ctx);
+
         let current_deck = self.view.deck_name().map(str::to_string);
         if current_deck != prev_deck {
             if prev_was_editor {
                 let max_cards = self
                     .decks
                     .iter()
-                    .map(|(d, _)| d.cards().len())
+                    .map(|e| e.deck.cards().len())
                     .max()
                     .unwrap_or(0);
                 reset_card_collapse_states(ctx, max_cards);
@@ -593,6 +699,67 @@ impl CramApp {
             Err(e) => {
                 self.error_message = Some(format!("Failed to import: {e}"));
             }
+        }
+    }
+
+    /// Surfaces an "external edit detected" modal for the first deck whose
+    /// on-disk content diverged from cram's last-known baseline. The user can
+    /// reload from disk (discarding in-memory edits) or overwrite the file.
+    fn show_conflict_modal(&mut self, ctx: &Context) {
+        let Some(idx) = self.decks.iter().position(|e| e.conflict.is_some()) else {
+            return;
+        };
+        let entry = &self.decks[idx];
+        let name = entry.deck.name().to_string();
+        let on_disk = entry.conflict.clone().unwrap_or_default();
+
+        let mut reload = false;
+        let mut overwrite = false;
+        let mut dismiss = false;
+
+        egui::Window::new(format!("External changes: {name}"))
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label(
+                    "This deck was modified on disk while cram had unsaved changes. \
+                     Choose how to resolve it:",
+                );
+                ui.add_space(8.0);
+                ui.collapsing("Show on-disk content", |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(240.0)
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::multiline(&mut on_disk.as_str())
+                                    .font(egui::TextStyle::Monospace)
+                                    .desired_width(ui.available_width())
+                                    .interactive(false),
+                            );
+                        });
+                });
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Reload from disk").clicked() {
+                        reload = true;
+                    }
+                    if ui.button("Overwrite disk").clicked() {
+                        overwrite = true;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        dismiss = true;
+                    }
+                });
+            });
+
+        if reload {
+            self.reload_deck_at(idx);
+            self.texture_cache.clear();
+        } else if overwrite {
+            self.force_save_deck_at(idx);
+        } else if dismiss {
+            self.decks[idx].conflict = None;
         }
     }
 
