@@ -19,12 +19,32 @@ pub enum DeckSource {
     Linked(PathBuf),
 }
 
+/// Result of [`MultiStore::save_deck_if_changed`].
+#[derive(Debug)]
+pub enum SaveOutcome {
+    /// In-memory deck already matches the baseline (or on-disk file). Nothing written.
+    Unchanged,
+    /// File was written; the caller's baseline has been advanced.
+    Written,
+    /// File on disk has been modified outside cram since the last load/save.
+    /// The file was *not* overwritten; the caller should resolve the conflict.
+    Conflict { on_disk: String },
+}
+
+/// Serialize a deck to the pretty TOML form used by the on-disk store.
+pub fn serialize_deck(deck: &Deck) -> Result<String> {
+    Ok(toml::to_string_pretty(deck)?)
+}
+
 /// Cached entry for a single deck file, keyed by its path.
 #[derive(Clone)]
 struct CachedDeck {
     deck: Deck,
     source: DeckSource,
     modified: SystemTime,
+    /// Raw file content at the time of the last read. Used to seed the
+    /// caller's baseline for conflict-aware saves.
+    content: String,
 }
 
 /// Stores previously loaded decks keyed by file path, along with their
@@ -93,6 +113,53 @@ impl MultiStore {
         &self.config_dir
     }
 
+    /// Like [`Self::load_all_decks`] but additionally returns the raw on-disk
+    /// content for each deck, suitable for use as a baseline with
+    /// [`Self::save_deck_if_changed`].
+    pub fn load_all_decks_with_baseline(&self) -> Result<Vec<(Deck, DeckSource, String)>> {
+        Ok(self
+            .load_all_decks_inner()?
+            .into_iter()
+            .map(|e| (e.deck, e.source, e.content))
+            .collect())
+    }
+
+    fn load_all_decks_inner(&self) -> Result<Vec<CachedDeck>> {
+        let mut result = Vec::new();
+        let mut cache = self.cache.borrow_mut();
+        let mut seen_paths: Vec<PathBuf> = Vec::new();
+
+        for file_path in self.primary_toml_files() {
+            seen_paths.push(file_path.clone());
+            if let Some(entry) = cached_or_reload(&mut cache.entries, &file_path, DeckSource::Local)
+            {
+                result.push(entry);
+            }
+        }
+
+        for dir in &self.linked_folders {
+            for file_path in find_toml_files(dir) {
+                seen_paths.push(file_path.clone());
+                let source = DeckSource::Linked(file_path.clone());
+                if let Some(entry) = cached_or_reload(&mut cache.entries, &file_path, source) {
+                    result.push(entry);
+                }
+            }
+        }
+
+        for file_path in &self.linked_files {
+            seen_paths.push(file_path.clone());
+            let source = DeckSource::Linked(file_path.clone());
+            if let Some(entry) = cached_or_reload(&mut cache.entries, file_path, source) {
+                result.push(entry);
+            }
+        }
+
+        cache.entries.retain(|k, _| seen_paths.contains(k));
+
+        Ok(result)
+    }
+
     /// Load all decks from the primary store and all linked sources.
     ///
     /// Results are cached by file path and modification time. Only files whose
@@ -145,24 +212,75 @@ impl MultiStore {
         self.cache.borrow_mut().entries.clear();
     }
 
-    /// Save a deck back to its source location.
+    /// Save a deck back to its source location, overwriting unconditionally.
+    ///
+    /// Prefer [`Self::save_deck_if_changed`] in interactive contexts so external
+    /// edits aren't clobbered when cram has no pending changes.
     ///
     /// Invalidates the deck cache so the next `load_all_decks` picks up changes.
     pub fn save_deck(&self, deck: &Deck, source: &DeckSource) -> Result<()> {
-        let result = match source {
-            DeckSource::Local => self.primary.save_deck(deck),
+        let path = self.deck_target_path(deck, source)?;
+        let content = serialize_deck(deck)?;
+        std::fs::write(&path, content)?;
+        self.invalidate_cache();
+        Ok(())
+    }
+
+    /// Save a deck only if its serialized form differs from `baseline` (the
+    /// content last loaded/written by cram). Detects external edits that
+    /// would otherwise be silently overwritten.
+    ///
+    /// On `Written`, `baseline` is updated to the newly-persisted content.
+    /// On `Conflict`, the file is left untouched and the on-disk content is
+    /// returned so the caller can prompt the user.
+    pub fn save_deck_if_changed(
+        &self,
+        deck: &Deck,
+        source: &DeckSource,
+        baseline: &mut String,
+    ) -> Result<SaveOutcome> {
+        let current = serialize_deck(deck)?;
+        if current == *baseline {
+            return Ok(SaveOutcome::Unchanged);
+        }
+
+        let path = self.deck_target_path(deck, source)?;
+        let on_disk = std::fs::read_to_string(&path).ok();
+
+        if let Some(disk) = on_disk.as_deref() {
+            if disk == current {
+                *baseline = current;
+                return Ok(SaveOutcome::Unchanged);
+            }
+            if disk != baseline.as_str() {
+                return Ok(SaveOutcome::Conflict {
+                    on_disk: disk.to_string(),
+                });
+            }
+        }
+
+        std::fs::write(&path, &current)?;
+        *baseline = current;
+        self.invalidate_cache();
+        Ok(SaveOutcome::Written)
+    }
+
+    /// Resolve the on-disk path that `save_deck` would write to.
+    fn deck_target_path(&self, deck: &Deck, source: &DeckSource) -> Result<PathBuf> {
+        match source {
+            DeckSource::Local => Ok(self
+                .primary
+                .data_dir()
+                .join(format!("{}.toml", deck.name()))),
             DeckSource::Linked(path) => {
                 if path.extension().and_then(|e| e.to_str()) == Some("toml") {
-                    let content = toml::to_string_pretty(deck)?;
-                    Ok(std::fs::write(path, content)?)
+                    Ok(path.clone())
                 } else {
                     let store = Store::open(path.clone())?;
-                    store.save_deck(deck)
+                    Ok(store.data_dir().join(format!("{}.toml", deck.name())))
                 }
             }
-        };
-        self.invalidate_cache();
-        result
+        }
     }
 
     /// Delete a deck from whichever store it lives in.
@@ -301,13 +419,14 @@ fn cached_or_reload(
         return Some(cached.clone());
     }
 
-    match load_deck_from_file(path) {
-        Ok(deck) => {
+    match load_deck_from_file_with_content(path) {
+        Ok((deck, content)) => {
             let modified = mtime.unwrap_or(SystemTime::UNIX_EPOCH);
             let entry = CachedDeck {
                 deck,
                 source,
                 modified,
+                content,
             };
             entries.insert(path.to_path_buf(), entry.clone());
             Some(entry)
@@ -318,6 +437,12 @@ fn cached_or_reload(
             None
         }
     }
+}
+
+fn load_deck_from_file_with_content(path: &Path) -> Result<(Deck, String)> {
+    let content = std::fs::read_to_string(path)?;
+    let deck = toml::from_str(&content)?;
+    Ok((deck, content))
 }
 
 fn file_modified(path: &Path) -> Option<SystemTime> {
@@ -694,6 +819,73 @@ mod tests {
         let primary = Store::with_dir(primary_dir).expect("primary");
         let ms = MultiStore::new(primary, config_dir).expect("ms");
         assert!(ms.linked_folders.is_empty());
+    }
+
+    #[test]
+    fn save_if_changed_unchanged_for_identical_deck() {
+        let (ms, _dir) = temp_multi_store();
+        let deck = Deck::new("same", "");
+        ms.save_deck(&deck, &DeckSource::Local).expect("save");
+        let mut baseline = serialize_deck(&deck).expect("ser");
+
+        let outcome = ms
+            .save_deck_if_changed(&deck, &DeckSource::Local, &mut baseline)
+            .expect("save if changed");
+        assert!(matches!(outcome, SaveOutcome::Unchanged));
+    }
+
+    #[test]
+    fn save_if_changed_writes_when_deck_differs() {
+        let (ms, _dir) = temp_multi_store();
+        let mut deck = Deck::new("evolve", "");
+        ms.save_deck(&deck, &DeckSource::Local).expect("save");
+        let mut baseline = serialize_deck(&deck).expect("ser");
+
+        deck.preamble_mut().push_str("// changed");
+        let outcome = ms
+            .save_deck_if_changed(&deck, &DeckSource::Local, &mut baseline)
+            .expect("save if changed");
+        assert!(matches!(outcome, SaveOutcome::Written));
+        assert_eq!(baseline, serialize_deck(&deck).expect("ser"));
+    }
+
+    #[test]
+    fn save_if_changed_detects_external_modification() {
+        let (ms, _dir) = temp_multi_store();
+        let deck = Deck::new("conflict", "");
+        ms.save_deck(&deck, &DeckSource::Local).expect("save");
+        let mut baseline = serialize_deck(&deck).expect("ser");
+
+        let path = ms.primary().data_dir().join("conflict.toml");
+        std::fs::write(
+            &path,
+            "name = \"conflict\"\npreamble = \"externally edited\"\ncards = []\n",
+        )
+        .expect("external edit");
+
+        let mut modified = deck.clone();
+        modified.preamble_mut().push_str("// cram's own edit");
+        let outcome = ms
+            .save_deck_if_changed(&modified, &DeckSource::Local, &mut baseline)
+            .expect("save if changed");
+        match outcome {
+            SaveOutcome::Conflict { on_disk } => {
+                assert!(on_disk.contains("externally edited"));
+            }
+            other => panic!("expected Conflict, got {other:?}"),
+        }
+        let on_disk_after = std::fs::read_to_string(&path).expect("read");
+        assert!(on_disk_after.contains("externally edited"));
+    }
+
+    #[test]
+    fn load_all_decks_with_baseline_returns_raw_content() {
+        let (ms, _dir) = temp_multi_store();
+        ms.save_deck(&Deck::new("baseline", ""), &DeckSource::Local)
+            .expect("save");
+        let entries = ms.load_all_decks_with_baseline().expect("load");
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].2.contains("name = \"baseline\""));
     }
 
     #[test]

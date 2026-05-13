@@ -1,11 +1,11 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use cram_core::{Card, Deck};
-use cram_store::{DeckSource, MultiStore};
+use cram_core::Card;
+use cram_store::DeckSource;
 use egui::{Context, Ui};
 
-use crate::app::PreviewDebounce;
+use crate::app::{DeckEntry, PreviewDebounce};
 use crate::highlight::typst_layout_job;
 use crate::style;
 use crate::texture_cache::{TextureCache, quantize_width};
@@ -14,11 +14,8 @@ use crate::texture_cache::{TextureCache, quantize_width};
 const ESTIMATED_CARD_BODY_HEIGHT: f32 = 500.0;
 
 pub struct EditorContext<'a> {
-    pub decks: &'a mut [Deck],
-    pub deck_name: &'a str,
+    pub entry: &'a mut DeckEntry,
     pub card_index: Option<usize>,
-    pub multi_store: &'a MultiStore,
-    pub deck_source: &'a DeckSource,
     pub texture_cache: &'a mut TextureCache,
     pub preview_debounce: &'a mut PreviewDebounce,
     pub save_feedback: &'a mut Option<std::time::Instant>,
@@ -30,10 +27,10 @@ pub struct EditorView;
 impl EditorView {
     /// Returns `true` if the user pressed the back button.
     pub fn show(ui: &mut Ui, ctx: &Context, ec: &mut EditorContext<'_>) -> bool {
-        let Some(deck) = ec.decks.iter_mut().find(|d| d.name() == ec.deck_name) else {
-            ui.label("Deck not found.");
-            return false;
-        };
+        let deck_name = ec.entry.deck.name().to_string();
+        let deck_source = ec.entry.source.clone();
+        let dirty = &mut ec.entry.dirty;
+        let deck = &mut ec.entry.deck;
 
         let mut back = false;
         let mut save_now = false;
@@ -47,8 +44,8 @@ impl EditorView {
                 {
                     back = true;
                 }
-                ui.heading(format!("Edit: {}", ec.deck_name));
-                if let DeckSource::Linked(path) = ec.deck_source {
+                ui.heading(format!("Edit: {}", &deck_name));
+                if let DeckSource::Linked(path) = &deck_source {
                     ui.label(
                         egui::RichText::new(shorten_home(path))
                             .small()
@@ -70,7 +67,7 @@ impl EditorView {
                             );
                         state.set_open(true);
                         state.store(ui.ctx());
-                        let _ = ec.multi_store.save_deck(deck, ec.deck_source);
+                        *dirty = true;
                     }
                     if ui
                         .selectable_label(false, egui::RichText::new("Save").size(15.0))
@@ -127,7 +124,7 @@ impl EditorView {
                         )
                         .changed()
                     {
-                        let _ = ec.multi_store.save_deck(deck, ec.deck_source);
+                        *dirty = true;
                         ec.texture_cache.clear();
                     }
                 });
@@ -257,8 +254,7 @@ impl EditorView {
                                                 .changed()
                                             {
                                                 deck.cards_mut()[i].set_hidden(hidden);
-                                                let _ =
-                                                    ec.multi_store.save_deck(deck, ec.deck_source);
+                                                *dirty = true;
                                             }
 
                                             ui.add_space(8.0);
@@ -284,9 +280,7 @@ impl EditorView {
                                                 }
                                                 if let Some(ti) = tag_to_remove {
                                                     deck.cards_mut()[i].tags_mut().remove(ti);
-                                                    let _ = ec
-                                                        .multi_store
-                                                        .save_deck(deck, ec.deck_source);
+                                                    *dirty = true;
                                                 }
                                             });
                                             let all_tags = deck.all_tags();
@@ -322,9 +316,7 @@ impl EditorView {
                                                             deck.cards_mut()[i]
                                                                 .tags_mut()
                                                                 .push(tag);
-                                                            let _ = ec
-                                                                .multi_store
-                                                                .save_deck(deck, ec.deck_source);
+                                                            *dirty = true;
                                                         }
                                                         buf.clear();
                                                         ui.memory_mut(|m| {
@@ -339,9 +331,7 @@ impl EditorView {
                                                     && !deck.cards()[i].has_tag(&trimmed)
                                                 {
                                                     deck.cards_mut()[i].tags_mut().push(trimmed);
-                                                    let _ = ec
-                                                        .multi_store
-                                                        .save_deck(deck, ec.deck_source);
+                                                    *dirty = true;
                                                 }
                                                 buf.clear();
                                             }
@@ -435,12 +425,12 @@ impl EditorView {
                 }
 
                 if save_now {
-                    let _ = ec.multi_store.save_deck(deck, ec.deck_source);
+                    *dirty = true;
                     *ec.save_feedback = Some(std::time::Instant::now());
                 }
                 if let Some(idx) = to_delete {
                     deck.cards_mut().remove(idx);
-                    let _ = ec.multi_store.save_deck(deck, ec.deck_source);
+                    *dirty = true;
                 }
             });
         });
