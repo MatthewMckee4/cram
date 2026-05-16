@@ -59,7 +59,10 @@ impl DeckListView {
                     ui.add_space(8.0);
                     ui.label("Create your first deck to start studying!");
                     ui.add_space(16.0);
-                    if ui.add(style::accent_button("＋ Create Deck")).clicked() {
+                    if ui
+                        .add(crate::components::primary(ui, "＋ Create Deck"))
+                        .clicked()
+                    {
                         *new_deck_name = String::new();
                         *view = View::NewDeck;
                     }

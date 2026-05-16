@@ -114,16 +114,21 @@ impl EditorView {
                             job.wrap.max_width = wrap_width;
                             ui.fonts_mut(|f| f.layout_job(job))
                         };
-                    if ui
-                        .add(
-                            egui::TextEdit::multiline(deck.preamble_mut())
-                                .font(egui::TextStyle::Monospace)
-                                .desired_rows(3)
-                                .desired_width(ui.available_width())
-                                .layouter(&mut preamble_layouter),
-                        )
-                        .changed()
-                    {
+                    let changed = crate::components::input_frame(ui)
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::multiline(deck.preamble_mut())
+                                    .font(egui::TextStyle::Monospace)
+                                    .desired_rows(3)
+                                    .desired_width(ui.available_width())
+                                    .frame(false)
+                                    .margin(egui::Margin::ZERO)
+                                    .layouter(&mut preamble_layouter),
+                            )
+                            .changed()
+                        })
+                        .inner;
+                    if changed {
                         *dirty = true;
                         ec.texture_cache.clear();
                     }
@@ -173,7 +178,7 @@ impl EditorView {
                                             let header_btn = egui::vec2(80.0, 28.0);
                                             if ui
                                                 .add(
-                                                    style::destructive_button("Delete")
+                                                    crate::components::destructive(ui, "Delete")
                                                         .min_size(header_btn),
                                                 )
                                                 .clicked()
@@ -218,15 +223,19 @@ impl EditorView {
                                                 ui.fonts_mut(|f| f.layout_job(job))
                                             };
                                             ui.label("Front (Typst):");
-                                            ui.add(
-                                                egui::TextEdit::multiline(
-                                                    deck.cards_mut()[i].front_mut(),
-                                                )
-                                                .font(egui::TextStyle::Monospace)
-                                                .desired_rows(5)
-                                                .desired_width(col_w)
-                                                .layouter(&mut front_layouter),
-                                            );
+                                            crate::components::input_frame(ui).show(ui, |ui| {
+                                                ui.add(
+                                                    egui::TextEdit::multiline(
+                                                        deck.cards_mut()[i].front_mut(),
+                                                    )
+                                                    .font(egui::TextStyle::Monospace)
+                                                    .desired_rows(5)
+                                                    .desired_width(col_w)
+                                                    .frame(false)
+                                                    .margin(egui::Margin::ZERO)
+                                                    .layouter(&mut front_layouter),
+                                                );
+                                            });
                                             ui.add_space(4.0);
                                             let mut back_layouter = |ui: &egui::Ui,
                                                                      text: &dyn egui::TextBuffer,
@@ -237,15 +246,19 @@ impl EditorView {
                                                 ui.fonts_mut(|f| f.layout_job(job))
                                             };
                                             ui.label("Back (Typst):");
-                                            ui.add(
-                                                egui::TextEdit::multiline(
-                                                    deck.cards_mut()[i].back_mut(),
-                                                )
-                                                .font(egui::TextStyle::Monospace)
-                                                .desired_rows(5)
-                                                .desired_width(col_w)
-                                                .layouter(&mut back_layouter),
-                                            );
+                                            crate::components::input_frame(ui).show(ui, |ui| {
+                                                ui.add(
+                                                    egui::TextEdit::multiline(
+                                                        deck.cards_mut()[i].back_mut(),
+                                                    )
+                                                    .font(egui::TextStyle::Monospace)
+                                                    .desired_rows(5)
+                                                    .desired_width(col_w)
+                                                    .frame(false)
+                                                    .margin(egui::Margin::ZERO)
+                                                    .layouter(&mut back_layouter),
+                                                );
+                                            });
 
                                             ui.add_space(8.0);
                                             let mut hidden = deck.cards()[i].is_hidden();

@@ -47,8 +47,9 @@ pub struct StudyContext<'a> {
     pub session: &'a mut StudySession,
     /// Current application view; mutated on navigation (Escape, session end).
     pub view: &'a mut View,
-    /// Card indices in the order they will be presented.
-    pub shuffled_indices: &'a [usize],
+    /// Card indices in the order they will be presented. Mutable so that
+    /// deleting the current card can remove its entry and shift higher indices.
+    pub shuffled_indices: &'a mut Vec<usize>,
     /// Whether this is a random or spaced-repetition session.
     pub study_mode: StudyMode,
 }
@@ -78,6 +79,13 @@ pub fn show_study(ui: &mut Ui, ctx: &Context, sc: &mut StudyContext<'_>) {
     let current_idx = (*sc.card_index).min(total.saturating_sub(1));
     let card_pos = sc.shuffled_indices[current_idx];
 
+    if card_pos >= sc.deck.cards().len() {
+        *sc.view = View::DeckDetail {
+            deck_name: sc.deck_name.to_string(),
+        };
+        return;
+    }
+
     let params = RenderParams {
         dark_mode: ui.visuals().dark_mode,
         quantized: quantize_width(ui.available_width() - 50.0),
@@ -105,8 +113,19 @@ pub fn show_study(ui: &mut Ui, ctx: &Context, sc: &mut StudyContext<'_>) {
         Some(params.width_pt),
     );
 
+    let mut delete_requested = false;
+    let mut edit_requested = false;
+
     ui.vertical(|ui| {
-        show_header(ui, sc.deck_name, sc.study_mode, current_idx, total);
+        show_header(
+            ui,
+            sc.deck_name,
+            sc.study_mode,
+            current_idx,
+            total,
+            &mut edit_requested,
+            &mut delete_requested,
+        );
 
         ui.separator();
         ui.add_space(24.0);
@@ -126,6 +145,15 @@ pub fn show_study(ui: &mut Ui, ctx: &Context, sc: &mut StudyContext<'_>) {
             }
         }
     });
+
+    if edit_requested {
+        *sc.view = View::Editor {
+            deck_name: sc.deck_name.to_string(),
+            card_index: Some(card_pos),
+        };
+    } else if delete_requested {
+        delete_current_card(sc, card_pos, current_idx);
+    }
 }
 
 /// Builds the Typst source for a card, combining the deck preamble with
@@ -176,6 +204,8 @@ fn show_header(
     study_mode: StudyMode,
     current_idx: usize,
     total: usize,
+    edit_requested: &mut bool,
+    delete_requested: &mut bool,
 ) {
     let progress = format!("{}/{}", current_idx + 1, total);
     let mode_label = match study_mode {
@@ -192,12 +222,25 @@ fn show_header(
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.label(&progress);
+            let header_btn = egui::vec2(70.0, 24.0);
+            if ui
+                .add(crate::components::destructive(ui, "Delete").min_size(header_btn))
+                .clicked()
+            {
+                *delete_requested = true;
+            }
+            if ui
+                .add(crate::components::outline(ui, "Edit").min_size(header_btn))
+                .clicked()
+            {
+                *edit_requested = true;
+            }
         });
     });
 
     #[expect(clippy::cast_precision_loss)]
     let fraction = (current_idx + 1) as f32 / total as f32;
-    ui.add(egui::ProgressBar::new(fraction).text(&progress));
+    ui.add(egui::ProgressBar::new(fraction));
 }
 
 fn show_card(ui: &mut Ui, render_result: &Result<TextureHandle, String>, card_source: &str) {
@@ -217,7 +260,7 @@ fn show_card(ui: &mut Ui, render_result: &Result<TextureHandle, String>, card_so
 
 fn show_reveal_button(ui: &mut Ui, revealed: &mut bool) {
     ui.vertical_centered(|ui| {
-        let btn = style::accent_button("Show Answer  [Space / Right]")
+        let btn = crate::components::primary(ui, "Show Answer  [Space / Right]")
             .min_size(egui::vec2(240.0, 44.0))
             .corner_radius(8.0);
         if ui.add(btn).clicked()
@@ -230,7 +273,7 @@ fn show_reveal_button(ui: &mut Ui, revealed: &mut bool) {
 
 fn show_random_next(ui: &mut Ui, sc: &mut StudyContext<'_>, total: usize) {
     ui.vertical_centered(|ui| {
-        let btn = style::accent_button("Next  [Space / Right]")
+        let btn = crate::components::primary(ui, "Next  [Space / Right]")
             .min_size(egui::vec2(240.0, 44.0))
             .corner_radius(8.0);
         if ui.add(btn).clicked()
@@ -298,6 +341,31 @@ fn show_rating_buttons(ui: &mut Ui, sc: &mut StudyContext<'_>, card_pos: usize, 
             }
         });
     });
+}
+
+/// Removes the current card from the deck and from the shuffled order,
+/// shifting later indices down by one. Ends the session if no cards remain.
+fn delete_current_card(sc: &mut StudyContext<'_>, card_pos: usize, current_idx: usize) {
+    sc.deck.cards_mut().remove(card_pos);
+    sc.shuffled_indices.remove(current_idx);
+    for idx in sc.shuffled_indices.iter_mut() {
+        if *idx > card_pos {
+            *idx -= 1;
+        }
+    }
+
+    let total = sc.shuffled_indices.len();
+    if total == 0 {
+        let elapsed = sc.session.start.elapsed().as_secs();
+        *sc.view = View::SessionSummary(SessionSummaryState {
+            deck_name: sc.deck_name.to_string(),
+            cards_reviewed: sc.session.reviewed,
+            elapsed_secs: elapsed,
+        });
+    } else if *sc.card_index >= total {
+        *sc.card_index = total - 1;
+    }
+    *sc.revealed = false;
 }
 
 /// Moves to the next card or ends the session if all cards are done.

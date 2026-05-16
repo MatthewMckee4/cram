@@ -55,7 +55,7 @@ mod tests {
     fn save_and_load_roundtrip() {
         let dir = tempfile::tempdir().expect("tempdir");
         let state = UiState {
-            theme: Some(Theme::Nord),
+            theme: Some(Theme::Dark),
             last_deck: Some("Rust Basics".to_string()),
         };
         state.save(dir.path()).expect("save");
@@ -81,7 +81,7 @@ mod tests {
     fn save_and_load_with_no_last_deck() {
         let dir = tempfile::tempdir().expect("tempdir");
         let state = UiState {
-            theme: Some(Theme::Dracula),
+            theme: Some(Theme::Light),
             last_deck: None,
         };
         state.save(dir.path()).expect("save");
@@ -124,10 +124,10 @@ mod tests {
     #[test]
     fn load_partial_toml_uses_defaults_for_missing_fields() {
         let dir = tempfile::tempdir().expect("tempdir");
-        std::fs::write(dir.path().join("ui_state.toml"), "theme = \"nord\"\n").expect("write");
+        std::fs::write(dir.path().join("ui_state.toml"), "theme = \"light\"\n").expect("write");
 
         let state = UiState::load(dir.path()).expect("load");
-        assert_eq!(state.theme, Some(Theme::Nord));
+        assert_eq!(state.theme, Some(Theme::Light));
         assert!(state.last_deck.is_none());
     }
 
