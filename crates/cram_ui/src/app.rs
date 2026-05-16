@@ -376,6 +376,8 @@ impl eframe::App for CramApp {
                         {
                             self.reload_decks();
                             self.texture_cache.clear();
+                            self.study_session = None;
+                            self.view = View::DeckList;
                         }
                         let toggle_label = if self.theme.is_dark() { "☀" } else { "☾" };
                         if crate::components::nav_tab(ui, toggle_label, false)
@@ -490,7 +492,7 @@ impl eframe::App for CramApp {
                                     texture_cache: &mut self.texture_cache,
                                     session,
                                     view: &mut self.view,
-                                    shuffled_indices: &state.shuffled_indices,
+                                    shuffled_indices: &mut state.shuffled_indices,
                                     study_mode: state.study_mode,
                                 };
                                 show_study(ui, ctx, &mut sc);
