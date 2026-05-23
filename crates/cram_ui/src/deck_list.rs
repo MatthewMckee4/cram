@@ -70,58 +70,45 @@ impl DeckListView {
                 return;
             }
 
-            let spacing = 20.0;
-            let min_card_width = 320.0;
-            // card_frame applies inner_margin(CARD_MARGIN) on both sides, so the actual
-            // column width is wider than the inner content min width.
-            let min_column_width = min_card_width + 2.0 * style::CARD_MARGIN;
-            let available_width = ui.available_width();
-            let num_columns = ((available_width + spacing) / (min_column_width + spacing))
-                .floor()
-                .max(1.0) as usize;
+            for (i, (deck, _source)) in decks.iter().enumerate() {
+                let total = deck.cards().len();
+                let weak = ui.visuals().weak_text_color();
 
-            egui::Grid::new("deck_grid")
-                .num_columns(num_columns)
-                .spacing([spacing, spacing])
-                .show(ui, |ui| {
-                    for (i, (deck, _source)) in decks.iter().enumerate() {
-                        let total = deck.cards().len();
-
-                        let frame_resp = style::card_frame(ui).show(ui, |ui| {
-                            ui.set_min_width(min_card_width);
-                            ui.vertical(|ui| {
-                                ui.heading(deck.name());
-                                if !deck.description().is_empty() {
-                                    ui.label(
-                                        egui::RichText::new(deck.description())
-                                            .italics()
-                                            .color(ui.visuals().weak_text_color()),
-                                    );
-                                }
-                                ui.add_space(4.0);
-                                ui.label(format!("{total} cards"));
-                            });
+                let frame_resp = style::card_frame(ui).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.set_height(36.0);
+                    ui.horizontal_centered(|ui| {
+                        ui.label(egui::RichText::new(deck.name()).heading());
+                        if !deck.description().is_empty() {
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(deck.description()).color(weak),
+                                )
+                                .truncate(),
+                            );
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(egui::RichText::new(format!("{total} cards")).color(weak));
                         });
-
-                        let card_interact = ui
-                            .interact(
-                                frame_resp.response.rect,
-                                egui::Id::new(("deck_card", i)),
-                                egui::Sense::click(),
-                            )
-                            .on_hover_cursor(egui::CursorIcon::PointingHand);
-
-                        if card_interact.clicked() {
-                            *view = View::DeckDetail {
-                                deck_name: deck.name().to_string(),
-                            };
-                        }
-
-                        if (i + 1) % num_columns == 0 {
-                            ui.end_row();
-                        }
-                    }
+                    });
                 });
+
+                let card_interact = ui
+                    .interact(
+                        frame_resp.response.rect,
+                        egui::Id::new(("deck_row", i)),
+                        egui::Sense::click(),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+
+                if card_interact.clicked() {
+                    *view = View::DeckDetail {
+                        deck_name: deck.name().to_string(),
+                    };
+                }
+
+                ui.add_space(style::ITEM_SPACING);
+            }
         });
 
         action

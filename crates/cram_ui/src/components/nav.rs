@@ -90,5 +90,5 @@ pub fn nav_tab(ui: &mut Ui, label: &str, active: bool) -> Response {
         font_id,
         hover_color,
     );
-    response
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }

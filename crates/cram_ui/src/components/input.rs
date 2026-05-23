@@ -23,14 +23,14 @@ pub fn text_input(ui: &mut Ui, value: &mut String, hint: &str) -> Response {
     inner
         .show(ui, |ui| {
             let avail = ui.available_width();
-            ui.set_min_height(tokens::CONTROL_HEIGHT);
             ui.add_sized(
                 vec2(avail, tokens::CONTROL_HEIGHT),
                 TextEdit::singleline(value)
                     .hint_text(hint)
                     .frame(false)
                     .desired_width(avail)
-                    .margin(Margin::ZERO),
+                    .margin(Margin::ZERO)
+                    .vertical_align(egui::Align::Center),
             )
         })
         .inner
