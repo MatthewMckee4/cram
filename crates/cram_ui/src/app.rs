@@ -5,7 +5,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use cram_core::Deck;
-use cram_store::{DeckSource, MultiStore, SaveOutcome, Store, StudyStats, serialize_deck};
+use cram_store::{DeckSource, MultiStore, SaveOutcome, Store, serialize_deck};
 
 use crate::deck_detail::{DeckDetailAction, DeckDetailView};
 use crate::deck_list::DeckListAction;
@@ -13,7 +13,6 @@ use crate::deck_list::DeckListView;
 use crate::editor::{EditorContext, EditorView, reset_card_collapse_states};
 use crate::search::SearchView;
 use crate::sources::{SourceStatus, SourcesView, SyncTask};
-use crate::stats::StatsView;
 use crate::study::{StudyContext, StudySession, show_study};
 use crate::style;
 use crate::texture_cache::{TextureCache, quantize_width};
@@ -38,7 +37,6 @@ pub enum View {
     NewDeck,
     Search,
     Sources,
-    Stats,
     SessionSummary(SessionSummaryState),
 }
 
@@ -93,6 +91,27 @@ impl DeckEntry {
     }
 }
 
+/// Transient notification surfaced at the bottom of the window for ~3 seconds.
+pub struct Toast {
+    message: String,
+    shown_at: std::time::Instant,
+}
+
+impl Toast {
+    const LIFETIME: std::time::Duration = std::time::Duration::from_secs(3);
+
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            shown_at: std::time::Instant::now(),
+        }
+    }
+
+    fn expired(&self) -> bool {
+        self.shown_at.elapsed() >= Self::LIFETIME
+    }
+}
+
 pub struct CramApp {
     multi_store: MultiStore,
     decks: Vec<DeckEntry>,
@@ -100,12 +119,12 @@ pub struct CramApp {
     new_deck_name: String,
     texture_cache: TextureCache,
     error_message: Option<String>,
+    toast: Option<Toast>,
     theme: Theme,
     search_query: String,
     study_session: Option<StudySession>,
     preview_debounce: PreviewDebounce,
     fullscreen_preview: Option<String>,
-    study_stats: StudyStats,
     sync_statuses: Vec<SourceStatus>,
     sync_task: Option<SyncTask>,
     save_feedback: Option<std::time::Instant>,
@@ -183,7 +202,6 @@ impl CramApp {
             .into_iter()
             .map(|(d, s, b)| DeckEntry::new(d, s, b))
             .collect();
-        let study_stats = StudyStats::load(multi_store.config_dir()).unwrap_or_default();
 
         let ui_state = UiState::load(multi_store.config_dir()).unwrap_or_default();
         let theme = ui_state.theme.unwrap_or_default();
@@ -196,12 +214,12 @@ impl CramApp {
             new_deck_name: String::new(),
             texture_cache: TextureCache::new(),
             error_message: None,
+            toast: None,
             theme,
             search_query: String::new(),
             study_session: None,
             preview_debounce: PreviewDebounce::default(),
             fullscreen_preview: None,
-            study_stats,
             sync_statuses: Vec::new(),
             sync_task: None,
             save_feedback: None,
@@ -355,7 +373,6 @@ impl eframe::App for CramApp {
                     let nav = [
                         ("Decks", View::DeckList),
                         ("Search", View::Search),
-                        ("Stats", View::Stats),
                         ("Sources", View::Sources),
                     ];
                     for (label, target) in nav {
@@ -378,6 +395,11 @@ impl eframe::App for CramApp {
                             self.texture_cache.clear();
                             self.study_session = None;
                             self.view = View::DeckList;
+                            let n = self.decks.len();
+                            self.toast = Some(Toast::new(format!(
+                                "Reloaded {n} deck{}",
+                                if n == 1 { "" } else { "s" },
+                            )));
                         }
                         let toggle_label = if self.theme.is_dark() { "☀" } else { "☾" };
                         if crate::components::nav_tab(ui, toggle_label, false)
@@ -423,6 +445,45 @@ impl eframe::App for CramApp {
                         });
                     });
                 });
+        }
+
+        if let Some(toast) = &self.toast {
+            if toast.expired() {
+                self.toast = None;
+            } else {
+                let palette = self.theme.palette();
+                let message = toast.message.clone();
+                let mut dismiss = false;
+                egui::TopBottomPanel::bottom("toast")
+                    .show_separator_line(false)
+                    .frame(
+                        egui::Frame::new()
+                            .fill(palette.card)
+                            .stroke(egui::Stroke::new(1.0, palette.border))
+                            .inner_margin(egui::Margin::symmetric(
+                                crate::components::SPACE_4 as i8,
+                                crate::components::SPACE_3 as i8,
+                            )),
+                    )
+                    .show(ctx, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(&message).color(palette.foreground));
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui.add(crate::components::ghost(ui, "Dismiss")).clicked() {
+                                        dismiss = true;
+                                    }
+                                },
+                            );
+                        });
+                    });
+                if dismiss {
+                    self.toast = None;
+                } else {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(250));
+                }
+            }
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -500,18 +561,7 @@ impl eframe::App for CramApp {
                                 self.decks[deck_idx].deck = deck;
                                 self.save_deck_at(deck_idx);
 
-                                if let View::SessionSummary(ref summary) = self.view {
-                                    self.study_stats.record_session(
-                                        summary.deck_name.clone(),
-                                        chrono::Utc::now().date_naive(),
-                                        summary.cards_reviewed,
-                                        summary.elapsed_secs,
-                                    );
-                                    if let Err(e) =
-                                        self.study_stats.save(self.multi_store.config_dir())
-                                    {
-                                        tracing::warn!("failed to save study stats: {e}");
-                                    }
+                                if matches!(self.view, View::SessionSummary(_)) {
                                     self.study_session = None;
                                 } else if matches!(self.view, View::Study(_)) {
                                     self.view = View::Study(state);
@@ -578,9 +628,6 @@ impl eframe::App for CramApp {
                             if prev_count != new_count || sync_completed {
                                 self.reload_decks();
                             }
-                        }
-                        View::Stats => {
-                            StatsView::show(ui, &self.study_stats);
                         }
                         View::SessionSummary(summary) => {
                             ui.vertical_centered(|ui| {

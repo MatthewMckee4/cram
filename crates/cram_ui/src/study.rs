@@ -54,7 +54,7 @@ pub struct StudyContext<'a> {
     pub study_mode: StudyMode,
 }
 
-/// Renders the study view for a single frame: card content, progress,
+/// Renders the study view for a single frame: card content,
 /// and action buttons. Handles keyboard input for navigation and rating.
 pub fn show_study(ui: &mut Ui, ctx: &Context, sc: &mut StudyContext<'_>) {
     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -237,10 +237,6 @@ fn show_header(
             }
         });
     });
-
-    #[expect(clippy::cast_precision_loss)]
-    let fraction = (current_idx + 1) as f32 / total as f32;
-    ui.add(egui::ProgressBar::new(fraction));
 }
 
 fn show_card(ui: &mut Ui, render_result: &Result<TextureHandle, String>, card_source: &str) {

@@ -153,9 +153,8 @@ impl SourcesView {
             ui.horizontal(|ui| {
                 ui.heading("Linked Sources");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
                     if ui
-                        .selectable_label(false, egui::RichText::new("Link Folder").size(15.0))
+                        .add(crate::components::secondary(ui, "Link Folder"))
                         .clicked()
                         && let Some(dir) = rfd::FileDialog::new().pick_folder()
                     {
@@ -168,7 +167,7 @@ impl SourcesView {
                         );
                     }
                     if ui
-                        .selectable_label(false, egui::RichText::new("Find Deck").size(15.0))
+                        .add(crate::components::secondary(ui, "Find Deck"))
                         .clicked()
                         && let Some(path) = rfd::FileDialog::new()
                             .add_filter("TOML deck files", &["toml"])
@@ -213,35 +212,33 @@ impl SourcesView {
                     ui.add_space(style::ITEM_SPACING);
                 }
 
-                ui.add_space(4.0);
-                ui.vertical_centered(|ui| {
-                    let has_syncable = source_entries.iter().any(|(p, kind)| {
-                        let search = match kind {
-                            SourceKind::Folder => p.clone(),
-                            SourceKind::File => p
-                                .parent()
-                                .map(|pp| pp.to_path_buf())
-                                .unwrap_or_else(|| p.clone()),
-                        };
-                        git::find_git_root(&search).is_some()
-                    });
-                    if has_syncable {
+                ui.add_space(style::SECTION_SPACING);
+                let has_syncable = source_entries.iter().any(|(p, kind)| {
+                    let search = match kind {
+                        SourceKind::Folder => p.clone(),
+                        SourceKind::File => p
+                            .parent()
+                            .map(|pp| pp.to_path_buf())
+                            .unwrap_or_else(|| p.clone()),
+                    };
+                    git::find_git_root(&search).is_some()
+                });
+                if has_syncable {
+                    ui.vertical_centered(|ui| {
                         if syncing {
                             ui.horizontal(|ui| {
                                 ui.spinner();
-                                ui.label("Syncing...");
+                                ui.label("Syncing…");
                             });
-                        } else {
-                            ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
-                            if ui
-                                .selectable_label(false, egui::RichText::new("Sync All").size(15.0))
-                                .clicked()
-                            {
-                                *sync_task = Some(SyncTask::spawn_all(multi_store, ctx.clone()));
-                            }
+                        } else if ui
+                            .add(crate::components::ghost(ui, "Sync All"))
+                            .on_hover_text("Pull latest changes from every linked git repo")
+                            .clicked()
+                        {
+                            *sync_task = Some(SyncTask::spawn_all(multi_store, ctx.clone()));
                         }
-                    }
-                });
+                    });
+                }
             });
 
             if let Some(path) = unlink_path {
@@ -302,51 +299,48 @@ fn show_group(
     unlink_path: &mut Option<PathBuf>,
 ) {
     style::card_frame(ui).show(ui, |ui| {
-        ui.set_min_width(ui.available_width() - 32.0);
-        ui.vertical(|ui| {
-            if let Some(root) = &group.git_root {
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(shorten_home(root)).strong().size(14.0));
-                    ui.label(
-                        egui::RichText::new("git repo")
-                            .small()
-                            .color(ui.visuals().weak_text_color()),
-                    );
-                    let status_msg = sync_statuses
+        ui.set_width(ui.available_width());
+        let weak = ui.visuals().weak_text_color();
+
+        let header_path = match (&group.git_root, group.entries.first()) {
+            (Some(root), _) => shorten_home(root),
+            (None, Some(entry)) => shorten_home(&entry.path),
+            (None, None) => String::new(),
+        };
+
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&header_path).strong().size(15.0));
+            if group.git_root.is_some() {
+                ui.label(egui::RichText::new("· git repo").small().color(weak));
+                if let Some(root) = &group.git_root
+                    && let Some(msg) = sync_statuses
                         .iter()
                         .find(|s| s.path == *root)
-                        .and_then(|s| s.message.as_deref());
-                    if let Some(msg) = status_msg {
-                        ui.label(
-                            egui::RichText::new(format!("· {msg}"))
-                                .small()
-                                .color(ui.visuals().weak_text_color()),
-                        );
+                        .and_then(|s| s.message.as_deref())
+                {
+                    ui.label(egui::RichText::new(format!("· {msg}")).small().color(weak));
+                }
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if let Some(root) = &group.git_root {
+                    if sync_task.is_some() {
+                        ui.spinner();
+                    } else if ui
+                        .add(crate::components::ghost(ui, "Sync"))
+                        .on_hover_text("Pull latest changes from this repo")
+                        .clicked()
+                    {
+                        *sync_task = Some(SyncTask::spawn_single(root.clone(), ctx.clone()));
                     }
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let syncing = sync_task.is_some();
-                        if syncing {
-                            ui.spinner();
-                        } else {
-                            ui.spacing_mut().button_padding = egui::vec2(12.0, 6.0);
-                            if ui
-                                .selectable_label(false, egui::RichText::new("Sync").size(15.0))
-                                .clicked()
-                            {
-                                *sync_task =
-                                    Some(SyncTask::spawn_single(root.clone(), ctx.clone()));
-                            }
-                        }
-                    });
-                });
-            }
-
-            ui.add_space(4.0);
-
-            for entry in &group.entries {
-                show_source_entry(ui, entry, group.git_root.as_deref(), unlink_path);
-            }
+                }
+            });
         });
+
+        ui.add_space(style::ITEM_SPACING);
+
+        for entry in &group.entries {
+            show_source_entry(ui, entry, group.git_root.as_deref(), unlink_path);
+        }
     });
 }
 
@@ -356,75 +350,44 @@ fn show_source_entry(
     git_root: Option<&std::path::Path>,
     unlink_path: &mut Option<PathBuf>,
 ) {
-    let display_path = match git_root {
-        Some(root) => entry
-            .path
-            .strip_prefix(root)
-            .map(|rel| rel.display().to_string())
-            .unwrap_or_else(|_| shorten_home(&entry.path)),
-        None => shorten_home(&entry.path),
-    };
-
-    egui::Frame::new()
-        .fill(ui.visuals().extreme_bg_color)
-        .corner_radius(6.0)
-        .inner_margin(14.0)
-        .outer_margin(egui::Margin::symmetric(0, 2))
-        .show(ui, |ui| {
-            ui.set_min_width(ui.available_width() - 16.0);
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    if git_root.is_some() {
-                        ui.label(egui::RichText::new(&display_path).strong().size(13.0));
-                    } else {
-                        ui.label(egui::RichText::new(&display_path).strong().size(14.0));
-                        ui.label(
-                            egui::RichText::new("not a git repo")
-                                .small()
-                                .color(ui.visuals().weak_text_color()),
-                        );
-                    }
-
-                    match entry.kind {
-                        SourceKind::Folder => {
-                            let deck_names = list_toml_names(&entry.path);
-                            if deck_names.is_empty() {
-                                ui.label(
-                                    egui::RichText::new("no decks found")
-                                        .small()
-                                        .color(ui.visuals().weak_text_color()),
-                                );
-                            } else {
-                                show_file_tree(ui, &deck_names);
-                            }
-                        }
-                        SourceKind::File => {
-                            ui.label(
-                                egui::RichText::new("deck file")
-                                    .small()
-                                    .color(ui.visuals().weak_text_color()),
-                            );
-                        }
-                    }
-                });
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .add(crate::components::destructive(ui, "Unlink"))
-                        .clicked()
-                    {
-                        *unlink_path = Some(entry.path.clone());
-                    }
-                });
-            });
+    ui.horizontal(|ui| {
+        ui.vertical(|ui| match entry.kind {
+            SourceKind::Folder => {
+                let deck_names = list_toml_names(&entry.path);
+                if deck_names.is_empty() {
+                    ui.label(
+                        egui::RichText::new("No decks found").color(ui.visuals().weak_text_color()),
+                    );
+                } else {
+                    show_file_tree(ui, &deck_names);
+                }
+            }
+            SourceKind::File => {
+                let name = entry
+                    .path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("(unnamed)");
+                ui.label(name);
+            }
         });
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui
+                .add(crate::components::ghost(ui, "Unlink"))
+                .on_hover_text("Remove this source (deck files are not deleted)")
+                .clicked()
+            {
+                *unlink_path = Some(entry.path.clone());
+            }
+        });
+        let _ = git_root;
+    });
 }
 
-/// Render sorted relative paths as a file tree with box-drawing characters.
+/// Render sorted relative paths as an indented deck list grouped by directory.
 fn show_file_tree(ui: &mut Ui, names: &[String]) {
     let weak = ui.visuals().weak_text_color();
 
-    // Build tree lines: group by directory prefix for visual nesting.
     let mut prev_parts: Vec<&str> = Vec::new();
     for name in names {
         let parts: Vec<&str> = name.split('/').collect();
@@ -434,29 +397,26 @@ fn show_file_tree(ui: &mut Ui, names: &[String]) {
             .zip(parts.iter())
             .take_while(|(a, b)| a == b)
             .count();
+
         for (depth, dir_name) in parts
             .iter()
             .enumerate()
             .take(parts.len().saturating_sub(1))
             .skip(common)
         {
-            let indent = "  ".repeat(depth);
+            let indent = "    ".repeat(depth);
             ui.label(
                 egui::RichText::new(format!("{indent}{dir_name}/"))
-                    .small()
+                    .strong()
                     .color(weak),
             );
         }
 
         let depth = parts.len().saturating_sub(1);
-        let indent = "  ".repeat(depth);
+        let indent = "    ".repeat(depth);
         let name_str = name.as_str();
         let leaf = parts.last().unwrap_or(&name_str);
-        ui.label(
-            egui::RichText::new(format!("{indent}{leaf}"))
-                .small()
-                .color(weak),
-        );
+        ui.label(egui::RichText::new(format!("{indent}{leaf}")));
         prev_parts = parts;
     }
 }

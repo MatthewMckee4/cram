@@ -5,9 +5,7 @@
 
 use egui::{Color32, Frame, Ui};
 
-pub use crate::components::tokens::{
-    CARD_PADDING as CARD_MARGIN, CONTENT_PADDING, ITEM_SPACING, SECTION_SPACING,
-};
+pub use crate::components::tokens::{CONTENT_PADDING, ITEM_SPACING, SECTION_SPACING};
 
 /// Brand accent used for foreground highlights (saved chips, matched terms).
 /// shadcn's neutral palette has no fixed accent hue, so we pick blue-500 —
